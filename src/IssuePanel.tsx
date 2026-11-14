@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useMutation, useQueryState } from "@feltdb/feltkit/react";
+import { useFeltKit, useMutation, useQueryState } from "@feltdb/feltkit/react";
 import { api } from "../feltkit/_generated/api";
 import { Avatar, LabelChip, PRIORITIES, StatusIcon, TYPES, ago, describe, href, useHotkeys, useRun, useWorkspace } from "./lib";
 
@@ -63,6 +63,7 @@ function IssueDetail({ issue, onDeleted }: { issue: Detail; onDeleted: () => voi
         {issue.parent && <p className="muted small">Sub-issue of <a href={href(window.location.hash.slice(1).split("?")[0]!, { issue: issue.parent.id })}>{issue.parent.key} {issue.parent.title}</a></p>}
         <Related title="Sub-issues" items={issue.children} />
         <Relations issue={issue} />
+        <Attachments issueId={issue.id} />
         <Thread issue={issue} />
       </div>
       <div className="detail-side">
@@ -213,6 +214,50 @@ function Relations({ issue }: { issue: Detail }) {
   );
 }
 
+/** Files on the issue: uploaded and downloaded through single-use / short-lived FeltKit file links. */
+function Attachments({ issueId }: { issueId: string }) {
+  const client = useFeltKit();
+  const files = useQueryState(api.attachments.list, { issueId });
+  const uploadLink = useMutation(api.attachments.uploadLink);
+  const attach = useMutation(api.attachments.attach);
+  const download = useMutation(api.attachments.download);
+  const remove = useMutation(api.attachments.remove);
+  const run = useRun();
+  const [busy, setBusy] = useState(false);
+  const upload = async (file: File) => {
+    setBusy(true);
+    try {
+      const link = await run(uploadLink({ issueId, name: file.name, contentType: file.type || "application/octet-stream" }));
+      if (!link) return;
+      const stored = await run(client.uploadFile(link as never, new Uint8Array(await file.arrayBuffer()), { name: file.name, contentType: file.type || "application/octet-stream" }));
+      if (stored) await run(attach({ issueId, fileId: stored.id }));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const open = async (fileId: string) => {
+    const link = await run(download({ issueId, fileId }));
+    if (link) window.open(client.fileUrl(link as never), "_blank", "noopener");
+  };
+  return (
+    <div className="related">
+      <h3>Attachments</h3>
+      {files.data?.map((f) => (
+        <div key={f.id} className="related-row">
+          <span>📎</span>
+          <button className="link" onClick={() => void open(f.id)}>{f.name}</button>
+          <span className="muted small">{Math.max(1, Math.round(f.size / 1024))} KB</span>
+          <button className="link small" onClick={() => void run(remove({ issueId, fileId: f.id }))} aria-label={`Remove ${f.name}`}>Remove</button>
+        </div>
+      ))}
+      <label className="small muted upload">
+        {busy ? "Uploading…" : "Attach a file (up to 10 MB)"}
+        <input type="file" disabled={busy} onChange={(e) => { const f = e.target.files?.[0]; if (f) void upload(f); e.target.value = ""; }} />
+      </label>
+    </div>
+  );
+}
+
 /** Comments and the change history, interleaved by time. */
 function Thread({ issue }: { issue: Detail }) {
   const ws = useWorkspace();
@@ -295,6 +340,8 @@ function eventText(e: Detail["history"][number], ws: ReturnType<typeof useWorksp
     case "issue.relation_added": return `${who} added a relation`;
     case "issue.relation_removed": return `${who} removed a relation`;
     case "issue.deleted": return `${who} deleted the issue`;
+    case "attachment.added": return `${who} attached ${d.name}`;
+    case "attachment.removed": return `${who} removed ${d.name}`;
     case "issue.updated": {
       const field = String(d.field ?? "");
       if (field === "priority") return `${who} set priority to ${PRIORITIES[Number(d.to)]?.label ?? d.to}`;

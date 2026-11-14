@@ -12,9 +12,9 @@ import { authorize } from "./_policy.js";
  * Read access every workspace role needs. notifications.send: after-commit notifications run as the
  * person whose change caused them, so everyone who can change an issue must be able to send one.
  */
-const READ = ["workspace.read", "issues.read", "projects.read", "notifications.send"];
+const READ = ["workspace.read", "issues.read", "projects.read", "notifications.send", "files.read"];
 /** What a contributor (member) can do in the teams they can reach. */
-const CONTRIBUTE = [...READ, "issues.create", "issues.update", "comments.write", "projects.write", "cycles.write", "labels.write", "teams.write"];
+const CONTRIBUTE = [...READ, "issues.create", "issues.update", "comments.write", "projects.write", "cycles.write", "labels.write", "teams.write", "files.write", "files.delete"];
 /** Inbox: a principal reads and marks only its own notifications (AppPort Services enforces it). */
 const INBOX = ["notifications.read", "notifications.update"];
 
@@ -32,7 +32,7 @@ export const app = feltkit({
     // (issues:remove is approval: "required"). They cannot manage teams, members or settings.
     agent: [...READ, "issues.create", "issues.update", "comments.write", "issues.delete", ...INBOX, "feltkit.agent.*"],
     // Guests reach only the teams they are added to (_policy.ts); they read, file and comment.
-    guest: [...READ, "issues.create", "comments.write"],
+    guest: [...READ, "issues.create", "comments.write", "files.write", "files.delete"],
     // Environment administration (Studio → Services, models, credentials). Development: Ada.
     operator: ["intelligence.*", "credential.*", "configuration.*", "apikeys.*", "jobs.*", "schedules.*", "feltkit.operations.*"],
   },
@@ -53,6 +53,7 @@ export const app = feltkit({
   services: {
     notifications: { types: ["issue.assigned", "issue.mentioned", "issue.commented", "issue.status"] },
     configuration: true,
+    files: true,
     apiKeys: { roles: ["agent"] },
     jobs: true,
     intelligence: true,

@@ -2,6 +2,7 @@
 /* eslint-disable */
 import { createApi } from "@feltdb/feltkit/client";
 import type * as app_module from "../app.js";
+import type * as attachments_module from "../attachments.js";
 import type * as comments_module from "../comments.js";
 import type * as cycles_module from "../cycles.js";
 import type * as inbox_module from "../inbox.js";
@@ -13,4 +14,4 @@ import type * as teams_module from "../teams.js";
 import type * as workspace_module from "../workspace.js";
 
 /** Typed references to every query and mutation. Type-only imports: no backend code reaches the browser. */
-export const api = createApi<{ "app": typeof app_module; "comments": typeof comments_module; "cycles": typeof cycles_module; "inbox": typeof inbox_module; "issues": typeof issues_module; "labels": typeof labels_module; "projects": typeof projects_module; "seed": typeof seed_module; "teams": typeof teams_module; "workspace": typeof workspace_module }>();
+export const api = createApi<{ "app": typeof app_module; "attachments": typeof attachments_module; "comments": typeof comments_module; "cycles": typeof cycles_module; "inbox": typeof inbox_module; "issues": typeof issues_module; "labels": typeof labels_module; "projects": typeof projects_module; "seed": typeof seed_module; "teams": typeof teams_module; "workspace": typeof workspace_module }>();

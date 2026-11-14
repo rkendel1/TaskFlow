@@ -90,6 +90,12 @@ export const RULES: Record<string, Rule> = {
   "comments:add": { targets: { issueId: "issue" } },
   "comments:edit": { targets: { commentId: "comment" }, require: "commentAuthor" },
   "comments:remove": { targets: { commentId: "comment" }, require: "commentAuthorOrModerator" },
+  // attachments (files carry their issue in metadata; the issue is the resource)
+  "attachments:list": { targets: { issueId: "issue" } },
+  "attachments:uploadLink": { targets: { issueId: "issue" } },
+  "attachments:attach": { targets: { issueId: "issue" } },
+  "attachments:download": { targets: { issueId: "issue" } },
+  "attachments:remove": { targets: { issueId: "issue" } },
   // inbox (AppPort Services notifications are per recipient; the service enforces it)
   "inbox:list": { noWorkspace: true },
   "inbox:markRead": { noWorkspace: true },

@@ -149,3 +149,39 @@ test("removing someone from the workspace ends their access on the next call", a
     await w.t.close();
   }
 });
+
+test("attachments: upload by link, download by link, scoped to the issue's reach", async () => {
+  const w = await world();
+  const { startServer } = await import("@feltdb/feltkit/server");
+  const { createClient } = await import("@feltdb/feltkit/client");
+  const server = await startServer({ runtime: w.t.runtime as never, projectDir: process.cwd(), port: 0, host: "127.0.0.1", dashboard: { enabled: false, adminToken: "", dir: null } } as never);
+  const anonymous = createClient({ url: server.url, tokens: { get: () => null, set: () => undefined } } as never);
+  try {
+    const { teamId } = await makeTeam(w, w.acme, "ada", "ENG");
+    const ada = w.as("ada", w.acme);
+    const { id: issueId } = await ada.mutation(api.issues.create, { teamId, title: "Crash report" });
+    const link = await ada.mutation(api.attachments.uploadLink, { issueId, name: "trace.txt", contentType: "text/plain" });
+    const file = await anonymous.uploadFile(link as never, new TextEncoder().encode("stack trace here"), { name: "trace.txt", contentType: "text/plain" });
+    await ada.mutation(api.attachments.attach, { issueId, fileId: file.id });
+
+    const grace = w.as("grace", w.acme);
+    const listed = await grace.query(api.attachments.list, { issueId });
+    assert.deepEqual(listed.map((f) => [f.name, f.owner]), [["trace.txt", "ada"]]);
+    const down = await grace.mutation(api.attachments.download, { issueId, fileId: file.id });
+    assert.equal(await (await fetch(anonymous.fileUrl(down as never))).text(), "stack trace here");
+    assert.ok((await grace.query(api.issues.get, { issueId })).history.some((h) => h.type === "attachment.added"));
+
+    // Another workspace, a guest outside the team, and a file named under another issue: refused.
+    await refused(w.as("mallory", w.globex).mutation(api.attachments.download, { issueId, fileId: file.id }), "NOT_FOUND");
+    await refused(w.as("linus", w.acme).query(api.attachments.list, { issueId }), "NOT_FOUND");
+    const { id: other } = await ada.mutation(api.issues.create, { teamId, title: "Other" });
+    await refused(grace.mutation(api.attachments.download, { issueId: other, fileId: file.id }), "NOT_FOUND");
+    // Only the uploader or an admin removes it.
+    await refused(grace.mutation(api.attachments.remove, { issueId, fileId: file.id }), "FORBIDDEN");
+    await ada.mutation(api.attachments.remove, { issueId, fileId: file.id });
+    assert.deepEqual(await grace.query(api.attachments.list, { issueId }), []);
+  } finally {
+    await server.close();
+    await w.t.close();
+  }
+});
