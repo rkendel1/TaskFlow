@@ -15,6 +15,38 @@ Each gap was reproduced by running code, not inferred from the API's shape. Repr
 - `platform-probes/tests/gaps.test.ts`: `npm run test:probes`. A deliberately unguarded app, asserting current behavior. A failing probe means the platform changed.
 - TaskFlow's own tests: `npm test`.
 
+## Status on platform `main` (validated 2026-11-14)
+
+Re-validated against **built** feltkit `main` `30f30c7` (0.3.30, unpublished) with appport-services
+`main` `1295589`, not against published packages. Method, evidence and the remediation plan are in
+[PLATFORM-REMEDIATION-PLAN.md](PLATFORM-REMEDIATION-PLAN.md) §0.
+- TaskFlow suite: 25/25 on `main`.
+- Platform probes: 4/4, so the behaviour they assert is unchanged.
+
+| ID | Status on `main` | Corrections found by verification (details in the plan, §2) |
+|---|---|---|
+| TF-GAP-01 | Open | A safe path exists today: declare the tenant field in the shape and name it in `unique` (probe P-1, also on `main`). The default is still unsafe |
+| TF-GAP-02 | Open | — |
+| TF-GAP-03 | Open | Own-task approval exists (`approveOwn`); approving others' proposals is admin/Studio only |
+| TF-GAP-04 | Open | `in`/`contains`/boolean exist in FeltDB's server-path `CanonicalQuery`, not in the embedded engine or `ctx.db` |
+| TF-GAP-05 | Open | Paging work (FRAME-GAP-08a) is not on `main` yet. Services already has a per-notification `tenantId` that FeltKit sets to the application |
+| TF-GAP-06 | **Fixed on `main`** (docs; behaviour was LA-G04). Awaiting publish | — |
+| TF-GAP-07 | Open (docs, GUARANTEES.md:401) | Behaviour fixed as LA-G02; schedules still carry no workspace (LA-G01) |
+| TF-GAP-08 | Open (docs) | — |
+| TF-GAP-09 | Open | The hook now also gets `definition`; `owner` (FRAME-GAP-04) covers collections, not service records |
+| TF-GAP-10 | Open | — |
+| TF-GAP-11 | Application-specific | FRAME-GAP-04 `owner` is per-record ownership, not groups; it has no "owner OR admin" |
+| TF-GAP-12 | Unpublished | `ctx.authority.decide({ onBehalfOf })` is **published** in 0.3.29; grants and local authority are on `main`; `@authboundry/local` is not on npm |
+| TF-GAP-13 | Open | — |
+| TF-GAP-14 | By design ("read once") | — |
+
+**New, from validation:**
+- **Release coupling (plan B5).** feltkit `main` needs `FileService.references`, which exists only on
+  appport-services `main`. That is still versioned 0.17.0, like the published package that lacks it,
+  and feltkit `main` accepts `>=0.17.0`.
+
+The platform register on `main` does not yet mention any `TF-GAP` finding.
+
 ## Summary
 
 | ID | Gap | Class | Owner | Severity | Blocks production? |

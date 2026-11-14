@@ -4,6 +4,73 @@
 - TaskFlow is the frozen baseline at commit `5a56f47`. This document is the only change.
 - No platform repository was modified.
 
+## 0. Validation against platform `main` (re-run 2026-11-14, after the latest merges)
+
+Sections 1–9 were first written against feltkit `6c823b1` and appport-services `9f2ca53`. Both moved
+since then:
+- **feltkit:** #125 (main compiles again), #126 and #127 merged. They bring function-bound ownership
+  (FRAME-GAP-04), file-deletion integrity (NEW-8, NEW-13) and register updates.
+- **appport-services:** #51 merged (`FileService.references`; `list()` pages above 1,000).
+
+Everything was re-validated against **built `main`**, not published packages:
+
+| Repository | Validated at | How |
+|---|---|---|
+| feltkit | `main` `30f30c7`, `packages/sdk` 0.3.30 | `npm ci`, `tsc --noEmit` (0 errors), `npm run build` |
+| appport-services | `main` `1295589`, still versioned 0.17.0 | `npm ci`, `npm run build`, its `dist` placed in feltkit's `node_modules/@appport/services`, so there is one `@feltdb/core` (0.21.0) |
+| TaskFlow | `5a56f47`, unchanged | Exported to a scratch directory with `@feltdb/feltkit` → feltkit `main`'s built SDK |
+
+**Results on `main`**
+
+| Check | Result |
+|---|---|
+| TaskFlow suite (`feltkit test`) | **25/25 pass**, 0 fail, 0 skip (21.6 s). No regression from FRAME-GAP-04's NEW-11 "unknown options refused" |
+| Platform probes (`platform-probes`) | **4/4 pass**: each still asserts the old behaviour, so TF-GAP-01, -02 and -05 **still reproduce on `main`** and files are still workspace-scoped |
+| P-1 (declared tenant field in `unique`) | Unchanged: other workspace `ok`, same workspace `CONFLICT` |
+| TaskFlow attachments test with feltkit `main` + **published** Services 0.17.0 | Passes (see B5 for what it does not show) |
+
+**Per-finding status on `main`**
+
+| ID | On `main` | Change from §3–§4 | Evidence (`main`) |
+|---|---|---|---|
+| TF-GAP-02 | **Still open** | none | probe passes as before; references still enforced only by FeltDB (`runtime/state-contract.ts:66`) |
+| TF-GAP-01 | **Still open** (safe path P-1 still works) | none | probe; P-1 |
+| TF-GAP-05 | **Still open** | **New remedy option.** Services notifications already have a `tenantId` dimension (appport-services `src/notifications/service.ts:91-118`). FeltKit passes the *application* as that tenant (`runtime/services.ts:372`, `this.#tenantId = options.applicationId`; list at `:1201`). Whether Services' tenant can carry the workspace without affecting other services is **unverified**; that is the owner's choice, alongside the LA-G04-style metadata stamp | probe; source |
+| TF-GAP-05 dependency | **Paging is not on `main`** | `claude/notifications-pagination` (`9cc9ecb`) is not an ancestor of `main`. The unified register §9.6: "Not started: step 4 (notification pagination)". The coordination point in §4 stands | `git merge-base --is-ancestor 9cc9ecb HEAD` fails |
+| TF-GAP-03 | **Still open** | none. App route still `approveOwn` | `server/index.ts:416`; other principals' proposals only via `server/admin.ts:627`, `:1242` |
+| TF-GAP-10 | **Still open** | none | `runtime/transactions.ts:250` (anonymous check only; no permission check) |
+| TF-GAP-12 | **Still unpublished** | none. `ctx.authority.grants` on `main`; `@authboundry/local` still 404 on npm | `runtime/application-authority.ts:36-37` |
+| TF-GAP-04 | **Still open** | none | `runtime/data.ts` `WhereClause`: `eq`/`neq`/`lt`/`lte`/`gt`/`gte` |
+| TF-GAP-09 | **Still open, partly changed** | The hook now also receives `definition` (FRAME-GAP-04), but still no services view. The new `owner` declaration reads application collections, not service records such as files, so it does not cover attachments | `authorize.ts:34-39`, `:108-114` |
+| TF-GAP-06 | **Fixed on `main` (docs)** | GUARANTEES.md now says files belong to the workspace they were uploaded in. **Remaining:** publish | `docs/GUARANTEES.md:352-353` |
+| TF-GAP-07 | **Still stale** | none (line moved) | `docs/GUARANTEES.md:401` |
+| TF-GAP-08 | **Still stale** | none | `docs/UPSTREAM-GAPS.md:95` (A9) |
+| TF-GAP-13 | **Still open** | none | `index.ts`: no `isFunctionDefinition` export |
+| TF-GAP-14 | **Unchanged** (by design) | none | `react/auth.tsx:176`, `:220` "read once" |
+| TF-GAP-11 | **Unchanged** | FRAME-GAP-04 adds per-record ownership on a function (`owner: { collection, id, field, via? }`). It does not model group membership. Its stated limitation "no owner OR admin alternative" also means TaskFlow's `issueCreatorOrAdmin` and `commentAuthorOrModerator` rules stay in the hook | `app.ts:603-658`; register §9 "C" |
+
+**TaskFlow and FRAME-GAP-04.**
+- **Pattern:** TaskFlow's `_policy.ts` `RULES` table is the string-keyed pattern FRAME-GAP-04 describes.
+- **Already mitigated:** default deny, plus `tests/foundation.test.ts` failing when a function and a rule
+  disagree. A rename therefore refuses calls instead of opening them.
+- **Opportunity on `main`:** compare `definition` instead of the name, and declare
+  `owner: { collection: comments, id: "commentId", field: "authorId" }` on `comments:edit`.
+- **Not a gap.** Out of scope while TaskFlow is frozen.
+
+**The platform register has not absorbed these findings.** `feltkit/docs/platform/GAP-REGISTER.md` on
+`main` mentions neither TaskFlow nor any `TF-GAP` id. Its §9.8 states "`main` is `6c823b1`,
+unchanged", which #127 has since made stale.
+
+**Line references in §3–§4** were taken at `6c823b1`. Those that moved on `main`:
+
+| Then | Now |
+|---|---|
+| `runtime/services.ts:859`, `:1317` | `:1027`, `:1505` |
+| `server/admin.ts:618`, `:1233` | `:627`, `:1242` |
+| `docs/GUARANTEES.md:330` | removed (fixed) |
+| `docs/GUARANTEES.md:349` | `:401` |
+| `runtime/transactions.ts:236-252` | about `:250` |
+
 ## 1. Baselines and method
 
 | Repository | Inspected at | Published |
@@ -23,8 +90,8 @@ How each finding was verified:
 New probes were run in a scratch directory outside TaskFlow; their code is quoted here so they can be reproduced.
 
 **Existing workstreams found:**
-- **Open PRs (all five repos):** one. feltkit #125, "Fix main: restore the brace and the import lost in merge c83977d".
-- **Branch without a PR:** feltkit `claude/notifications-pagination` (`9cc9ecb`, 2026-11-14), stacked on #125.
+- **Open PRs (all five repos):** one. feltkit #125, "Fix main: restore the brace and the import lost in merge c83977d". **Since merged; see §0.**
+- **Branch without a PR:** feltkit `claude/notifications-pagination` (`9cc9ecb`, 2026-11-14), stacked on #125. **Still not on `main` (§0).**
 - **Already merged before 0.3.29, so not new work:** `tenancy-followups`, `auth-tenancy`, `scoped-events`.
 - **Unrelated despite their names:** flow_db `state-ref-authority` and `feltdb-equality-index-*`. They are older and about other subjects.
 
@@ -322,7 +389,7 @@ Behaviour is already correct; only the text is wrong.
 ## 5. Dependencies and sequencing
 
 ```
-B1 feltkit #125 (main compiles) ──┬─► TF-GAP-02 ─┐
+B1 (done) ─ B5 Services release ──┬─► TF-GAP-02 ─┐
                                   ├─► TF-GAP-01 ─┤ (both need AppBoundry host parity check)
                                   ├─► notifications-pagination ─► TF-GAP-05
                                   ├─► TF-GAP-03
@@ -335,7 +402,7 @@ FeltDB: embedded operator parity ─► FeltKit ctx.db exposure ─► TF-GAP-04
 
 | Phase | Work | Gate to the next phase |
 |---|---|---|
-| 0 | B1: merge feltkit #125 | feltkit `packages/sdk` typechecks and the SDK suite is green |
+| 0 | ~~B1: merge feltkit #125~~ **Done** (`main` `30f30c7` typechecks and builds). Remaining: B5. Publish appport-services with `FileService.references` under a new version, and raise feltkit's floor to it, before any 0.3.30 release | appport-services published with `references`; feltkit `@appport/services` range excludes 0.17.0 |
 | 1 (P0) | TF-GAP-02, TF-GAP-01 in FeltKit; AppBoundry parity check | Inverted probes pass on Node and artifact; TaskFlow 25/25 with workarounds removed |
 | 2 (P1) | Land notifications-pagination, then TF-GAP-05; TF-GAP-03 | Acceptance in §4; owner decisions on approval visibility and pre-existing notifications |
 | 3 (P2) | TF-GAP-10; release B2/B3 and verify TF-GAP-12; FeltDB parity then TF-GAP-04 | Each acceptance in §4 |
@@ -363,7 +430,9 @@ Measured at `5a56f47`, counting non-blank, non-comment lines in the cited ranges
 
 | ID | Blocker | Blocks | Evidence |
 |---|---|---|---|
-| B1 | feltkit `main` does not compile: `src/runtime/runtime.ts(694,29): error TS1005`, and more after it | Every FeltKit remediation and the 0.3.30 release | `tsc -p packages/sdk/tsconfig.json --noEmit` at `6c823b1`. Fix proposed in open PR #125 (not reviewed here) |
+| ~~B1~~ | **Resolved.** feltkit `main` did not compile at `6c823b1`. #125 merged; `main` `30f30c7` typechecks with 0 errors and builds | — | `tsc --noEmit` and `npm run build` at `30f30c7` (§0) |
+| B5 | **Release coupling.** feltkit `main` releases file bytes through `FileService.references` (`runtime/services.ts:884-892`), which exists only on appport-services `main`. That is still versioned **0.17.0**, the same number as the published package, which lacks it. feltkit `main` accepts `>=0.17.0`. Published as-is, every file removal would fail closed: bytes kept, the error in the outbox, not the caller. TaskFlow's attachment test passes either way, so it **cannot detect this** | FeltKit 0.3.30 release; TaskFlow attachments (storage growth) | Source at the cited lines; `files/service.d.ts` of published 0.17.0 has no `references`. **Inferred from code; bytes kept not observed directly** |
+| B6 | Notification paging (FRAME-GAP-08a, `9cc9ecb`) is not integrated (register §9.6 step 4 "not started") | TF-GAP-05, which must build on it or merge with it | `git merge-base` (§0) |
 | B2 | `@authboundry/local` is not published (npm 404) | TF-GAP-12 (local authority and grants) | `npm view @authboundry/local` |
 | B3 | Unknown whether the AuthBoundry 6B-#3 fix is in published 1.17.3 | TF-GAP-12 on hosted AuthBoundry | Shallow clone; release contents not compared |
 | B4 | Owner decisions in §4 (approval visibility, refuse vs warn on effects, the `unique` approach, pre-existing cross-tenant references and notifications, groups primitive, redirect behaviour) | The corresponding implementations | — |
