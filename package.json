@@ -10,7 +10,8 @@
     "test": "feltkit test",
     "inspect": "feltkit inspect",
     "deploy": "feltkit deploy",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:probes": "cd platform-probes && feltkit test"
   },
   "dependencies": {
     "@feltdb/feltkit": "^0.3.29",

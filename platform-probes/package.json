@@ -1,0 +1,8 @@
+{
+  "name": "taskflow-platform-probes",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Minimal FeltKit app that reproduces platform gaps TaskFlow works around. Uses the parent's node_modules.",
+  "scripts": { "test": "feltkit test" }
+}
