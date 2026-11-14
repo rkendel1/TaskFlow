@@ -56,7 +56,7 @@ test("filters agree with a brute-force reading of the same data", async () => {
       const got = ((await ada.query(api.issues.list, { ...args, limit: 1000 } as never)) as Row).items;
       const want = all.filter(oracle);
       assert.ok(want.length > 0, `filter ${JSON.stringify(args)} selects something`);
-      assert.deepEqual(ids(got), ids(want), JSON.stringify(args));
+      assert.deepEqual(ids(got), ids(want as Array<{ id: string }>), JSON.stringify(args));
     };
     await check({ teamId: eng.id }, (i) => i.teamId === eng.id);
     await check({ projectId: projects[0]!.id }, (i) => i.projectId === projects[0]!.id);
