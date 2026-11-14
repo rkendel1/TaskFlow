@@ -226,3 +226,36 @@ test("concurrent changes: numbers stay gapless; racing edits never lose a write 
     await w.t.close();
   }
 });
+
+test("a restart keeps a realistic workspace exactly as it was", async () => {
+  const w = await seeded();
+  try {
+    let sample: string[] = [];
+    const snapshot = async () => {
+      const ada = w.as("ada", w.acme);
+      const list = ((await ada.query(api.issues.list, { limit: 1000, sort: "key" })) as Row).items as Array<Record<string, unknown>>;
+      if (!sample.length) sample = list.filter((_, i) => i % 37 === 0).map((i) => i.id as string); // 25 issues, chosen once
+      return {
+        list: list.map((i) => [i.id, i.key, i.stateId, i.assigneeId ?? null, i.__version]),
+        details: await Promise.all(sample.map((issueId) => ada.query(api.issues.get, { issueId }))),
+        attention: await ada.query(api.issues.attention, { today: TODAY }),
+        teams: await ada.query(api.teams.list),
+        projects: await ada.query(api.projects.list, {}),
+      };
+    };
+    const before = await snapshot();
+    // A write just before the restart must survive it too, and numbering must continue.
+    const eng = before.teams.find((t) => t.key === "ENG")!;
+    const made = await w.as("grace", w.acme).mutation(api.issues.create, { teamId: eng.id, title: "Written just before restart" });
+    await w.t.restart();
+    const after = await snapshot();
+    assert.deepEqual(after.list.filter((r) => r[0] !== made.id), before.list);
+    assert.deepEqual(after.details, before.details);
+    assert.deepEqual(after.attention, before.attention);
+    assert.deepEqual(after.projects, before.projects);
+    assert.equal(made.key, "ENG-301");
+    assert.equal((await w.as("ada", w.acme).mutation(api.issues.create, { teamId: eng.id, title: "after" })).key, "ENG-302");
+  } finally {
+    await w.t.close();
+  }
+});

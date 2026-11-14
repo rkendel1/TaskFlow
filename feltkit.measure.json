@@ -1,0 +1,8 @@
+{
+  "report": "measure.json",
+  "classify": [
+    { "path": "platform-probes/feltkit/app.ts", "class": "tests", "reason": "a deliberately unguarded probe app that reproduces FeltKit gaps (docs/GAP-REGISTER.md); not part of TaskFlow" },
+    { "path": "platform-probes/feltkit/probe.ts", "class": "tests", "reason": "probe functions for the gap reproductions" },
+    { "path": "platform-probes/feltkit/_generated/api.ts", "class": "generated", "reason": "feltkit codegen output for the probe app" }
+  ]
+}
