@@ -8,8 +8,11 @@
 import { feltkit, s } from "@feltdb/feltkit";
 import { authorize } from "./_policy.js";
 
-/** Read access every workspace role needs. */
-const READ = ["workspace.read", "issues.read", "projects.read"];
+/**
+ * Read access every workspace role needs. notifications.send: after-commit notifications run as the
+ * person whose change caused them, so everyone who can change an issue must be able to send one.
+ */
+const READ = ["workspace.read", "issues.read", "projects.read", "notifications.send"];
 /** What a contributor (member) can do in the teams they can reach. */
 const CONTRIBUTE = [...READ, "issues.create", "issues.update", "comments.write", "projects.write", "cycles.write", "labels.write", "teams.write"];
 /** Inbox: a principal reads and marks only its own notifications (AppPort Services enforces it). */
@@ -42,6 +45,7 @@ export const app = feltkit({
       { id: "ada", name: "Ada Lovelace", roles: ["person", "operator"] },
       { id: "grace", name: "Grace Hopper", roles: ["person"] },
       { id: "linus", name: "Linus Torvalds", roles: ["person"] },
+      { id: "mallory", name: "Mallory Chen", roles: ["person"] },
     ],
   },
   // Resolved at call time: _policy.ts reads this module's collections, so either may load first.
