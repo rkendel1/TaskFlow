@@ -62,7 +62,7 @@
       "lines": 0
     },
     "excluded": {
-      "files": 8,
+      "files": 9,
       "lines": 4416
     },
     "unclassified": {
@@ -322,6 +322,12 @@
     },
     {
       "path": "docs/GAP-REGISTER.md",
+      "class": "excluded",
+      "basis": "documentation",
+      "lines": 0
+    },
+    {
+      "path": "docs/PLATFORM-REMEDIATION-PLAN.md",
       "class": "excluded",
       "basis": "documentation",
       "lines": 0
