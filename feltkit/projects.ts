@@ -1,75 +1,178 @@
 import { fail, s } from "@feltdb/feltkit";
-import { app, projects, tasks } from "./app.js";
+import { activity, app, issues, milestones, projects, workflowStates, PROJECT_STATUSES, STATE_CATEGORIES } from "./app.js";
+import { must, reachableTeams, requireMember, today } from "./_domain.js";
 
-const Project = s.object({
-  id: s.string(),
-  name: s.string(),
-  createdAt: s.number(),
-  createdBy: s.string(),
-  open: s.integer(),
-  done: s.integer(),
-});
+const date = () => s.string({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
+const Progress = s.object({ total: s.integer(), completed: s.integer(), started: s.integer(), canceled: s.integer(), percent: s.number() });
 
-/** Every project with its task counts. */
+type Category = (typeof STATE_CATEGORIES)[number];
+
+/** Progress by state category. Canceled issues leave the scope, as in Linear. */
+async function progressOf(ctx: Parameters<typeof reachableTeams>[0], items: Array<{ stateId: string; estimate?: number }>) {
+  const categories = new Map<string, Category>();
+  let total = 0, completed = 0, started = 0, canceled = 0;
+  for (const i of items) {
+    if (!categories.has(i.stateId)) categories.set(i.stateId, (await ctx.db.get(workflowStates, i.stateId))?.category ?? "backlog");
+    const c = categories.get(i.stateId)!;
+    if (c === "canceled") { canceled++; continue; }
+    total++;
+    if (c === "completed") completed++;
+    if (c === "started") started++;
+  }
+  return { total, completed, started, canceled, percent: total ? Math.round((completed / total) * 1000) / 10 : 0 };
+}
+
 export const list = app.query({
   access: "projects.read",
-  returns: s.array(Project),
-  capability: { name: "projects.list", description: "List projects with their open and completed task counts." },
-  handler: async (ctx) => {
-    const [all, allTasks] = await Promise.all([ctx.db.find(projects, {}, { orderBy: [{ field: "createdAt", direction: "asc" }] }), ctx.db.find(tasks)]);
-    return all.map((p) => {
-      const mine = allTasks.filter((t) => t.projectId === p.id);
-      return { id: p.id, name: p.name, createdAt: p.createdAt, createdBy: p.createdBy, open: mine.filter((t) => !t.done).length, done: mine.filter((t) => t.done).length };
-    });
+  args: { teamId: s.optional(s.string()) },
+  handler: async (ctx, { teamId }) => {
+    const teamIds = teamId ? [teamId] : (await reachableTeams(ctx)).map((t) => t.id);
+    const out = [];
+    for (const id of teamIds) {
+      for (const p of await ctx.db.find(projects, { teamId: id }, { orderBy: [{ field: "createdAt", direction: "desc" }] })) {
+        out.push({ ...p, progress: await progressOf(ctx, await ctx.db.find(issues, { projectId: p.id })) });
+      }
+    }
+    return out;
   },
 });
 
 export const create = app.mutation({
   access: "projects.write",
-  args: { name: s.string({ minLength: 1, maxLength: 80 }) },
+  args: {
+    teamId: s.string(),
+    name: s.string({ minLength: 1, maxLength: 80 }),
+    description: s.optional(s.string({ maxLength: 4000 })),
+    status: s.optional(s.enum(PROJECT_STATUSES)),
+    leadId: s.optional(s.string()),
+    startDate: s.optional(date()),
+    targetDate: s.optional(date()),
+  },
   returns: s.string(),
-  handler: async (ctx, { name }) => {
-    const trimmed = name.trim();
-    if (!trimmed) fail("INVALID_ARGUMENT", "A project needs a name.");
-    const existing = await ctx.db.find(projects, { name: trimmed });
-    if (existing.length) fail("CONFLICT", `There is already a project called "${trimmed}".`);
-    return ctx.db.insert(projects, { name: trimmed, createdAt: Date.now(), createdBy: ctx.auth.requirePrincipal().id });
+  handler: async (ctx, a) => {
+    if (a.leadId) await requireMember(ctx, a.leadId, "lead");
+    if (a.startDate && a.targetDate && a.targetDate < a.startDate) fail("INVALID_ARGUMENT", "The target date is before the start date.");
+    const now = Date.now();
+    const id = await ctx.db.insert(projects, {
+      teamId: a.teamId,
+      name: a.name.trim(),
+      ...(a.description ? { description: a.description } : {}),
+      status: a.status ?? "planned",
+      ...(a.leadId ? { leadId: a.leadId } : {}),
+      ...(a.startDate ? { startDate: a.startDate } : {}),
+      ...(a.targetDate ? { targetDate: a.targetDate } : {}),
+      createdBy: ctx.auth.requirePrincipal().id,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await activity.record(ctx, { subject: "project", id, type: "project.created", data: { name: a.name.trim() } });
+    return id;
   },
 });
 
-export const rename = app.mutation({
+export const update = app.mutation({
   access: "projects.write",
-  args: { id: s.string(), name: s.string({ minLength: 1, maxLength: 80 }) },
-  handler: async (ctx, { id, name }) => {
-    await ctx.db.patch(projects, id, { name: name.trim() });
+  args: {
+    projectId: s.string(),
+    name: s.optional(s.string({ minLength: 1, maxLength: 80 })),
+    description: s.optional(s.nullable(s.string({ maxLength: 4000 }))),
+    status: s.optional(s.enum(PROJECT_STATUSES)),
+    leadId: s.optional(s.nullable(s.string())),
+    startDate: s.optional(s.nullable(date())),
+    targetDate: s.optional(s.nullable(date())),
   },
-});
-
-/**
- * Removes completed tasks (and their notes) from one project, or from every project. Runs as
- * the background job "projects.clear-completed" (services.jobs.handlers in app.ts), queued
- * from Studio → Services → Jobs or on a schedule, as the person who queued it.
- */
-export const clearCompleted = app.mutation({
-  access: "projects.write",
-  args: { projectId: s.optional(s.string()) },
-  returns: s.object({ removed: s.integer() }),
-  handler: async (ctx, { projectId }) => {
-    const done = await ctx.db.find(tasks, projectId ? { projectId, done: true } : { done: true });
-    for (const task of done) {
-      for (const file of await ctx.services.files.list({ metadata: { taskId: task.id } })) await ctx.services.files.remove(file.id);
-      await ctx.db.delete(tasks, task.id);
+  handler: async (ctx, { projectId, ...changes }) => {
+    const project = must(await ctx.db.get(projects, projectId), "project");
+    if (changes.leadId) await requireMember(ctx, changes.leadId, "lead");
+    const patch: Record<string, unknown> = {};
+    for (const [field, to] of Object.entries(changes)) {
+      if (to === undefined) continue;
+      const from = (project as Record<string, unknown>)[field];
+      if ((from ?? null) === to) continue;
+      patch[field] = to === null ? undefined : to;
+      await activity.record(ctx, { subject: "project", id: projectId, type: field === "status" ? "project.status_changed" : "project.updated", data: { field, from: field === "description" ? null : (from ?? null), to: field === "description" ? null : to } });
     }
-    return { removed: done.length };
+    const start = (patch.startDate ?? project.startDate) as string | undefined;
+    const target = (patch.targetDate ?? project.targetDate) as string | undefined;
+    if (start && target && target < start) fail("INVALID_ARGUMENT", "The target date is before the start date.");
+    if (Object.keys(patch).length) await ctx.db.patch(projects, projectId, { ...patch, updatedAt: Date.now() });
   },
 });
 
-/** Deletes a project and all of its tasks in one atomic commit. */
-export const remove = app.mutation({
+/** A project's overview: progress overall and per milestone, status mix, and its history. */
+export const summary = app.query({
+  access: "projects.read",
+  args: { projectId: s.string() },
+  returns: s.object({
+    id: s.string(),
+    name: s.string(),
+    status: s.enum(PROJECT_STATUSES),
+    teamId: s.string(),
+    leadId: s.optional(s.string()),
+    startDate: s.optional(s.string()),
+    targetDate: s.optional(s.string()),
+    description: s.optional(s.string()),
+    overdue: s.boolean(),
+    progress: Progress,
+    milestones: s.array(s.object({ id: s.string(), name: s.string(), targetDate: s.optional(s.string()), progress: Progress })),
+    unassignedToMilestone: Progress,
+    history: s.array(s.object({ type: s.string(), actor: s.string(), at: s.number(), data: s.optional(s.record(s.unknown())) })),
+  }),
+  capability: { name: "projects.summary", description: "A project's progress (issues completed of its scope), per milestone, whether it is past its target date, and its history." },
+  handler: async (ctx, { projectId }) => {
+    const p = must(await ctx.db.get(projects, projectId), "project");
+    const items = await ctx.db.find(issues, { projectId });
+    const ms = await ctx.db.find(milestones, { projectId }, { orderBy: [{ field: "position", direction: "asc" }] });
+    const progress = await progressOf(ctx, items);
+    const history = await activity.history(ctx, "project", projectId, { limit: 100 });
+    return {
+      id: p.id,
+      name: p.name,
+      status: p.status,
+      teamId: p.teamId,
+      ...(p.leadId ? { leadId: p.leadId } : {}),
+      ...(p.startDate ? { startDate: p.startDate } : {}),
+      ...(p.targetDate ? { targetDate: p.targetDate } : {}),
+      ...(p.description ? { description: p.description } : {}),
+      overdue: Boolean(p.targetDate && p.targetDate < today() && p.status !== "completed" && p.status !== "canceled" && progress.percent < 100),
+      progress,
+      milestones: await Promise.all(ms.map(async (m) => ({ id: m.id, name: m.name, ...(m.targetDate ? { targetDate: m.targetDate } : {}), progress: await progressOf(ctx, items.filter((i) => i.milestoneId === m.id)) }))),
+      unassignedToMilestone: await progressOf(ctx, items.filter((i) => !i.milestoneId)),
+      history: history.map((h) => ({ type: h.type, actor: h.actor, at: h.at, ...(h.data ? { data: h.data } : {}) })),
+    };
+  },
+});
+
+export const addMilestone = app.mutation({
   access: "projects.write",
-  args: { id: s.string() },
-  handler: async (ctx, { id }) => {
-    for (const task of await ctx.db.find(tasks, { projectId: id })) await ctx.db.delete(tasks, task.id);
-    await ctx.db.delete(projects, id);
+  args: { projectId: s.string(), name: s.string({ minLength: 1, maxLength: 80 }), targetDate: s.optional(date()) },
+  returns: s.string(),
+  handler: async (ctx, { projectId, name, targetDate }) => {
+    const existing = await ctx.db.find(milestones, { projectId });
+    const id = await ctx.db.insert(milestones, { projectId, name: name.trim(), ...(targetDate ? { targetDate } : {}), position: existing.length });
+    await activity.record(ctx, { subject: "project", id: projectId, type: "project.milestone_added", data: { milestoneId: id, name: name.trim() } });
+    return id;
+  },
+});
+
+export const updateMilestone = app.mutation({
+  access: "projects.write",
+  args: { milestoneId: s.string(), name: s.optional(s.string({ minLength: 1, maxLength: 80 })), targetDate: s.optional(s.nullable(date())) },
+  handler: async (ctx, { milestoneId, name, targetDate }) => {
+    const m = must(await ctx.db.get(milestones, milestoneId), "milestone");
+    await ctx.db.patch(milestones, milestoneId, { ...(name ? { name: name.trim() } : {}), ...(targetDate !== undefined ? { targetDate: targetDate ?? undefined } : {}) });
+    await activity.record(ctx, { subject: "project", id: m.projectId, type: "project.milestone_updated", data: { milestoneId, ...(name ? { name } : {}), ...(targetDate !== undefined ? { targetDate } : {}) } });
+  },
+});
+
+/** Remove a milestone; its issues stay in the project, without a milestone. */
+export const removeMilestone = app.mutation({
+  access: "projects.write",
+  args: { milestoneId: s.string() },
+  handler: async (ctx, { milestoneId }) => {
+    const m = must(await ctx.db.get(milestones, milestoneId), "milestone");
+    for (const i of await ctx.db.find(issues, { projectId: m.projectId })) if (i.milestoneId === milestoneId) await ctx.db.patch(issues, i.id, { milestoneId: undefined, updatedAt: Date.now() });
+    await ctx.db.delete(milestones, milestoneId);
+    await activity.record(ctx, { subject: "project", id: m.projectId, type: "project.milestone_removed", data: { milestoneId, name: m.name } });
   },
 });
