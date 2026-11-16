@@ -231,3 +231,30 @@ test("revocation: removing the agent's membership, or its session, stops the ver
   }
 });
 
+
+test("discovery is per caller: an agent is shown only what its own role lets it use, and hidden tools still refuse", async () => {
+  const h = await harness();
+  const { w } = h;
+  try {
+    const { teamId } = await makeTeam(w, w.acme, "ada", "ENG");
+    const { id: issueId } = await w.as("ada", w.acme).mutation(api.issues.create, { teamId, title: "x" });
+    // A second agent, added with the guest role: read, file and comment, nothing else.
+    const owner = await w.t.tenancy!.context(w.acme, "ada");
+    await w.t.tenancy!.addPrincipal({ ...owner!, principalId: "ada" }, { id: "reader-bot", type: "agent", displayName: "Reader" }, "guest");
+    await w.as("ada", w.acme).mutation(api.teams.addMember, { teamId, userId: "reader-bot" });
+    const reader = await w.t.runtime.issueSession({ id: "reader-bot", type: "agent", roles: [] }, { kind: "cli", via: "cli" as never, tenantId: w.acme });
+    const full = await h.agentSession(w.acme);
+    const listed = async (token: string) => ((await h.mcp(token, "tools/list")).body.result.tools as Array<{ name: string }>).map((t) => t.name).filter((n) => !n.startsWith("feltkit_")).sort();
+    const triage = await listed(full.token);
+    const guest = await listed(reader.token);
+    assert.ok(triage.includes("issues_update") && triage.includes("issues_assign"));
+    assert.deepEqual(guest.filter((n) => ["issues_update", "issues_assign", "issues_setstatus", "issues_delete"].includes(n)), [], "a guest is not shown what it cannot use");
+    assert.ok(guest.includes("issues_search") && guest.includes("issues_create") && guest.includes("comments_add"));
+    // Discovery is not authorization: calling a hidden tool directly is still refused.
+    const hidden = await h.tool(reader.token, "issues_update", { issueId, title: "nope" });
+    assert.equal(hidden.ok, false);
+    assert.equal((await w.as("ada", w.acme).query(api.issues.get, { issueId })).title, "x");
+  } finally {
+    await h.close();
+  }
+});

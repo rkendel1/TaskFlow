@@ -4,7 +4,7 @@ import { ThemeToggle } from "./theme";
 import { Avatar, href, navigate, ToastProvider, useHotkeys, useRoute, useWorkspace, WorkspaceProvider } from "./lib";
 import { IssuesPage } from "./Issues";
 import { IssuePanel } from "./IssuePanel";
-import { AttentionPage, CyclePage, CyclesPage, InboxPage, ProjectPage, ProjectsPage, SettingsPage } from "./Pages";
+import { AttentionPage, CapturePage, CyclePage, CyclesPage, InboxPage, ProjectPage, ProjectsPage, SettingsPage } from "./Pages";
 import { CommandBar, CreateIssueDialog } from "./Command";
 
 /** Development sign-in: the declared dev users, switchable from the corner. Absent in production. */
@@ -93,6 +93,7 @@ function Shell() {
   let page: React.ReactNode;
   if (section === "inbox") page = <InboxPage />;
   else if (section === "attention") page = <AttentionPage />;
+  else if (section === "capture") page = <CapturePage />;
   else if (section === "settings") page = <SettingsPage teamId={id} />;
   else if (section === "projects" && id) page = <ProjectPage projectId={id} />;
   else if (section === "projects") page = <ProjectsPage />;
@@ -116,6 +117,7 @@ function Shell() {
           {nav("/inbox", "Inbox", ws.unread ? <span className="count">{ws.unread}</span> : null)}
           {nav("/my-issues", "My issues", ws.overview.myOpenIssues ? <span className="count muted">{ws.overview.myOpenIssues}</span> : null)}
           {nav("/attention", "Needs attention")}
+          {nav("/capture", "Capture")}
           {nav("/projects", "Projects")}
         </nav>
         <div className="nav-heading">Your teams</div>

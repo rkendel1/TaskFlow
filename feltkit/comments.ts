@@ -1,7 +1,8 @@
 import { s } from "@feltdb/feltkit";
 import { app, comments, issues, teams } from "./app.js";
+import { ASSISTANT_ID, assistantRequest } from "./_assistant.js";
 import { issueKey, memberIds, must, notify, parseMentions, recordIssue } from "./_domain.js";
-import { policy } from "./_policy.js";
+import { canReachTeam, policy } from "./_policy.js";
 
 /**
  * Comment on an issue. Mentions (`@[Name](id)`) of workspace members notify them; the issue's
@@ -10,7 +11,7 @@ import { policy } from "./_policy.js";
 export const add = app.mutation({
   access: "comments.write",
   args: { issueId: s.string(), body: s.string({ minLength: 1, maxLength: 10000 }) },
-  returns: s.object({ id: s.string(), mentions: s.array(s.string()) }),
+  returns: s.object({ id: s.string(), mentions: s.array(s.string()), assistant: s.optional(s.enum(["asked", "not-in-workspace", "not-on-team"])) }),
   capability: { name: "comments.add", description: "Comment on an issue. Mention a member with @[Name](memberId) to notify them." },
   handler: async (ctx, { issueId, body }) => {
     const me = ctx.auth.requirePrincipal().id;
@@ -26,6 +27,18 @@ export const add = app.mutation({
     notify(ctx, mentions, { type: "issue.mentioned", title: `You were mentioned on ${key}: ${issue.title}`, body: preview, issueId, issueKey: key });
     const followers = [issue.creatorId, issue.assigneeId, ...earlier.map((c) => c.authorId)].filter((p) => p && !mentions.includes(p) && members.has(p));
     notify(ctx, followers, { type: "issue.commented", title: `New comment on ${key}: ${issue.title}`, body: preview, issueId, issueKey: key });
+    // "@assistant follow up: <title>" asks the assistant to file a sub-issue for the commenter. It runs
+    // after this commits, as itself, and acts only on the commenter's delegation (assistant.ts).
+    const ask = assistantRequest(body);
+    if (ask && ctx.auth.requirePrincipal().type === "user") {
+      if (!members.has(ASSISTANT_ID)) return { id, mentions, assistant: "not-in-workspace" as const };
+      // The assistant works with its own reach (role agent): a private team it is not on is out of
+      // bounds whatever the person allowed. Say so now rather than queue a run the policy refuses.
+      const assistant = { id: ASSISTANT_ID, type: "agent" as const, roles: [], tenant: { ...ctx.auth.tenant!, role: "agent" } };
+      if (!(await canReachTeam(ctx.db, assistant as never, team))) return { id, mentions, assistant: "not-on-team" as const };
+      ctx.afterCommit.agent("assistant", { issueId, commentId: id, title: ask });
+      return { id, mentions, assistant: "asked" as const };
+    }
     return { id, mentions };
   },
 });

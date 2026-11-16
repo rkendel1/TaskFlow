@@ -59,6 +59,28 @@ TaskFlow has not adopted it; adopting it is a feature, not a workaround.
   - tested in `tests/collab.test.ts`; probe "TF-GAP-15" pins the cap.
 - **Residual.** Notifications older than the newest 50 cannot be shown until paging is published.
 
+## New platform features adopted (2026-11-16, FeltKit 0.3.30)
+
+| Feature | TaskFlow use | Evidence |
+|---|---|---|
+| `definition` in the authorize hook (FRAME-GAP-04) | All 53+ resource rules are bound to function definitions (`policy(definition, rule)`), not `"<module>:<export>"` strings | `tests/foundation.test.ts` coverage test; every authorization test |
+| `owner` on functions (FRAME-GAP-04) | `comments:edit` declares its author | `tests/foundation.test.ts` "ownership" |
+| Surfaces and invocations (`app.surface`, `ctx.invocations`) | **Capture**: file an issue from a page, selection or share sheet. There is a capture form and a bookmarklet; the capture is durable, replay-safe and cancellable | `tests/capture.test.ts` (3); Chromium: filed in about 1.8 s, bookmarklet opens a prefilled form |
+| Delegation (`authority: { local: true }`, `ctx.authority.grants` / `decide`, `@authboundry/local` 0.1.0) | **Assistant**: `@assistant follow up: <title>` files a sub-issue for the commenter, only on their grant, within the assistant's own role and teams; recorded with `onBehalfOf`, `delegationId` and `executorProof` | `tests/assistant.test.ts` (2); Chromium: grant, ask, ENG-122 filed, reply in the thread |
+| Per-caller discovery (MCP `tools/list`) | A guest-role agent is shown only what it may use; hidden tools still refuse | `tests/agents.test.ts` "discovery is per caller" |
+
+**Found while adopting:**
+
+| ID | Finding | Class | Owner | Workaround |
+|---|---|---|---|---|
+| TF-GAP-16 | A live query that reads `ctx.invocations` is not re-run when an invocation is created or changes state. Measured: a submitted capture never appeared on the page that submitted it; it appeared after a reload | 2 | FeltKit | The capture page reads its list with `client.query` after each action, and every 1.5 s only while a capture is queued or running (`src/Pages.tsx`, CapturePage) |
+| TF-GAP-10 (again) | Capture's dispatch, an after-commit job run as the person, failed in the outbox ("AuthBoundry denied jobs.create") although the capture was accepted. Nothing warned at acceptance. The message also names AuthBoundry, which was not involved (platform S12) | 5 / 2 | FeltKit | Roles that capture hold `jobs.create` and `jobs.execute`; the capture test asserts no failed outbox |
+| TF-GAP-17 | `CHANGELOG.md` lists `owner`, surfaces/invocations, per-caller discovery and executors under "Unreleased", but they ship in 0.3.30 | 5 | FeltKit | — |
+
+**Not adopted, with the reason:**
+- *Per-person connections* (CONNECTIONS.md): TaskFlow has no external integration. Adding one would invent scope and need real credentials.
+- *Execution placement*: capture uses the default local placement; no other environment is registered.
+
 ## Status on platform `main` (validated 2026-11-14)
 
 Re-validated against **built** feltkit `main` `30f30c7` (0.3.30, unpublished) with appport-services
@@ -110,6 +132,8 @@ The platform register on `main` does not yet mention any `TF-GAP` finding.
 | TF-GAP-13 | `isFunctionDefinition` is declared but not exported | 5 | FeltKit | Low | No |
 | TF-GAP-14 | `useAuthRedirect` ignores an invitation link opened in an already-loaded tab | 2 | FeltKit (React) | Low | No |
 | TF-GAP-15 | `notifications.list()` returns one page of 50 and no cursor (= FRAME-GAP-08a, fixed on an unpublished branch) | 2 | FeltKit | Medium | Inbox past 50 notifications: older ones unreachable |
+| TF-GAP-16 | Live queries reading `ctx.invocations` are not re-run on invocation changes | 2 | FeltKit | Medium | Capture status needs polling |
+| TF-GAP-17 | CHANGELOG lists features shipped in 0.3.30 as "Unreleased" | 5 | FeltKit | Low | No |
 
 ## Details
 

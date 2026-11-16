@@ -30,12 +30,12 @@
   },
   "totals": {
     "domain": {
-      "files": 13,
-      "lines": 1588
+      "files": 17,
+      "lines": 1806
     },
     "experience": {
       "files": 8,
-      "lines": 1784
+      "lines": 1930
     },
     "infrastructure": {
       "files": 0,
@@ -43,15 +43,15 @@
     },
     "generated": {
       "files": 8,
-      "lines": 102
+      "lines": 104
     },
     "configuration": {
       "files": 5,
-      "lines": 93
+      "lines": 94
     },
     "tests": {
-      "files": 8,
-      "lines": 926
+      "files": 10,
+      "lines": 1127
     },
     "third-party": {
       "files": 0,
@@ -63,7 +63,7 @@
     },
     "excluded": {
       "files": 9,
-      "lines": 3914
+      "lines": 4122
     },
     "unclassified": {
       "files": 0,
@@ -71,16 +71,18 @@
     }
   },
   "authored": {
-    "files": 26,
-    "lines": 3465
+    "files": 30,
+    "lines": 3830
   },
   "definitions": {
     "app": {
+      "agent": 1,
       "auditTrail": 1,
       "collection": 11,
-      "mutation": 37,
-      "query": 16,
-      "requireTenant": 1
+      "mutation": 43,
+      "query": 17,
+      "requireTenant": 1,
+      "surface": 1
     },
     "collections": [
       "teams",
@@ -99,47 +101,52 @@
   "consumption": [
     {
       "api": "@feltdb/feltkit s",
-      "callSites": 441,
-      "files": 13
+      "callSites": 464,
+      "files": 15
     },
     {
       "api": "ctx.db",
-      "callSites": 134,
-      "files": 9
+      "callSites": 138,
+      "files": 11
     },
     {
       "api": "@feltdb/feltkit fail",
-      "callSites": 33,
-      "files": 8
+      "callSites": 34,
+      "files": 10
     },
     {
       "api": "@feltdb/feltkit/react useMutation",
-      "callSites": 27,
+      "callSites": 32,
       "files": 4
     },
     {
       "api": "@feltdb/feltkit/react useQueryState",
-      "callSites": 26,
+      "callSites": 27,
       "files": 5
     },
     {
       "api": "ctx.auth",
-      "callSites": 20,
-      "files": 10
+      "callSites": 24,
+      "files": 13
     },
     {
       "api": "@feltdb/feltkit feltkit",
-      "callSites": 7,
+      "callSites": 12,
       "files": 2
     },
     {
       "api": "@feltdb/feltkit MutationCtx",
-      "callSites": 7,
-      "files": 3
+      "callSites": 8,
+      "files": 4
     },
     {
       "api": "ctx.services.files",
       "callSites": 7,
+      "files": 1
+    },
+    {
+      "api": "ctx.invocations",
+      "callSites": 6,
       "files": 1
     },
     {
@@ -148,9 +155,19 @@
       "files": 2
     },
     {
+      "api": "ctx.authority",
+      "callSites": 5,
+      "files": 1
+    },
+    {
       "api": "ctx.services.notifications",
       "callSites": 5,
       "files": 1
+    },
+    {
+      "api": "ctx.tenancy",
+      "callSites": 4,
+      "files": 4
     },
     {
       "api": "@feltdb/feltkit DatabaseReader",
@@ -168,9 +185,9 @@
       "files": 3
     },
     {
-      "api": "ctx.tenancy",
+      "api": "@feltdb/feltkit/react useFeltKit",
       "callSites": 3,
-      "files": 3
+      "files": 2
     },
     {
       "api": "@feltdb/feltkit/react useSession",
@@ -258,12 +275,12 @@
       "files": 1
     },
     {
-      "api": "@feltdb/feltkit/react useFeltKit",
+      "api": "@feltdb/feltkit/react useTenant",
       "callSites": 1,
       "files": 1
     },
     {
-      "api": "@feltdb/feltkit/react useTenant",
+      "api": "ctx.afterCommit.agent",
       "callSites": 1,
       "files": 1
     },
@@ -274,6 +291,11 @@
     },
     {
       "api": "ctx.requestId",
+      "callSites": 1,
+      "files": 1
+    },
+    {
+      "api": "ctx.trigger",
       "callSites": 1,
       "files": 1
     }
@@ -351,6 +373,12 @@
       "lines": 29
     },
     {
+      "path": "feltkit/_assistant.ts",
+      "class": "domain",
+      "basis": "path: feltkit/ (server functions)",
+      "lines": 6
+    },
+    {
       "path": "feltkit/_domain.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
@@ -360,83 +388,101 @@
       "path": "feltkit/_generated/api.ts",
       "class": "generated",
       "basis": "codegen (matches regeneration)",
-      "lines": 13,
+      "lines": 15,
       "scaffold": "modified"
+    },
+    {
+      "path": "feltkit/_issues.ts",
+      "class": "domain",
+      "basis": "path: feltkit/ (server functions)",
+      "lines": 57
     },
     {
       "path": "feltkit/_policy.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 169
+      "lines": 127
     },
     {
       "path": "feltkit/app.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 159,
+      "lines": 176,
       "scaffold": "modified"
+    },
+    {
+      "path": "feltkit/assistant.ts",
+      "class": "domain",
+      "basis": "path: feltkit/ (server functions)",
+      "lines": 62
     },
     {
       "path": "feltkit/attachments.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 49
+      "lines": 55
+    },
+    {
+      "path": "feltkit/capture.ts",
+      "class": "domain",
+      "basis": "path: feltkit/ (server functions)",
+      "lines": 82
     },
     {
       "path": "feltkit/comments.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 47
+      "lines": 60
     },
     {
       "path": "feltkit/cycles.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 85
+      "lines": 91
     },
     {
       "path": "feltkit/inbox.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 42,
+      "lines": 46,
       "scaffold": "modified"
     },
     {
       "path": "feltkit/issues.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 452
+      "lines": 431
     },
     {
       "path": "feltkit/labels.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 20
+      "lines": 23
     },
     {
       "path": "feltkit/projects.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 165,
+      "lines": 173,
       "scaffold": "modified"
     },
     {
       "path": "feltkit/seed.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 123
+      "lines": 125
     },
     {
       "path": "feltkit/teams.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 114
+      "lines": 124
     },
     {
       "path": "feltkit/workspace.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 54
+      "lines": 59
     },
     {
       "path": "index.html",
@@ -449,13 +495,13 @@
       "path": "package-lock.json",
       "class": "excluded",
       "basis": "lockfile",
-      "lines": 3914
+      "lines": 4122
     },
     {
       "path": "package.json",
       "class": "configuration",
       "basis": "configuration file",
-      "lines": 32,
+      "lines": 33,
       "scaffold": "modified"
     },
     {
@@ -526,7 +572,7 @@
       "path": "src/App.tsx",
       "class": "experience",
       "basis": "path: src/ (UI)",
-      "lines": 147,
+      "lines": 149,
       "scaffold": "modified"
     },
     {
@@ -539,7 +585,7 @@
       "path": "src/IssuePanel.tsx",
       "class": "experience",
       "basis": "path: src/ (UI)",
-      "lines": 338
+      "lines": 348
     },
     {
       "path": "src/Issues.tsx",
@@ -551,7 +597,7 @@
       "path": "src/Pages.tsx",
       "class": "experience",
       "basis": "path: src/ (UI)",
-      "lines": 340
+      "lines": 469
     },
     {
       "path": "src/lib.tsx",
@@ -570,7 +616,7 @@
       "path": "src/styles.css",
       "class": "experience",
       "basis": "path: src/ (UI)",
-      "lines": 251,
+      "lines": 256,
       "scaffold": "modified"
     },
     {
@@ -584,7 +630,19 @@
       "path": "tests/agents.test.ts",
       "class": "tests",
       "basis": "path: tests",
-      "lines": 197
+      "lines": 221
+    },
+    {
+      "path": "tests/assistant.test.ts",
+      "class": "tests",
+      "basis": "path: tests",
+      "lines": 84
+    },
+    {
+      "path": "tests/capture.test.ts",
+      "class": "tests",
+      "basis": "path: tests",
+      "lines": 86
     },
     {
       "path": "tests/collab.test.ts",
@@ -596,13 +654,13 @@
       "path": "tests/foundation.test.ts",
       "class": "tests",
       "basis": "path: tests",
-      "lines": 172
+      "lines": 175
     },
     {
       "path": "tests/helpers.ts",
       "class": "tests",
       "basis": "path: tests",
-      "lines": 46
+      "lines": 50
     },
     {
       "path": "tests/work.test.ts",

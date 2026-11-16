@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useFeltKit, useMutation, useQueryState } from "@feltdb/feltkit/react";
 import { api } from "../feltkit/_generated/api";
-import { Avatar, LabelChip, PRIORITIES, StatusIcon, TYPES, ago, describe, href, useHotkeys, useRun, useWorkspace } from "./lib";
+import { Avatar, LabelChip, PRIORITIES, StatusIcon, TYPES, ago, describe, href, useHotkeys, useRun, useToast, useWorkspace } from "./lib";
 
 type Detail = NonNullable<ReturnType<typeof useQueryState<typeof api.issues.get>>["data"]>;
 
@@ -263,6 +263,7 @@ function Thread({ issue }: { issue: Detail }) {
   const ws = useWorkspace();
   const run = useRun();
   const addComment = useMutation(api.comments.add);
+  const toast = useToast();
   const editComment = useMutation(api.comments.edit);
   const removeComment = useMutation(api.comments.remove);
   const [body, setBody] = useState("");
@@ -282,7 +283,12 @@ function Thread({ issue }: { issue: Detail }) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     if (!body.trim()) return;
-    if (await run(addComment({ issueId: issue.id, body }))) setBody("");
+    const added = await run(addComment({ issueId: issue.id, body }));
+    if (!added) return;
+    setBody("");
+    if (added.assistant === "asked") toast("info", "Asked the assistant. It answers in this thread.");
+    if (added.assistant === "not-in-workspace") toast("error", "The assistant isn't in this workspace. A workspace admin can add it in Settings → Assistant.");
+    if (added.assistant === "not-on-team") toast("error", "The assistant isn't on this private team. Add it to the team to let it file here.");
   };
   return (
     <div className="thread">
@@ -308,7 +314,7 @@ function Thread({ issue }: { issue: Detail }) {
         )}
       </ol>
       <form className="comment-form" onSubmit={submit}>
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Leave a comment…" rows={3} aria-label="Comment" onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void submit(e as never); }} />
+        <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Leave a comment… (@assistant follow up: <title> files a sub-issue for you)" rows={3} aria-label="Comment" onKeyDown={(e) => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) void submit(e as never); }} />
         <div className="comment-actions">
           <select value="" onChange={(e) => e.target.value && mention(e.target.value)} aria-label="Mention someone">
             <option value="">@ Mention…</option>
@@ -334,7 +340,11 @@ function eventText(e: Detail["history"][number], ws: ReturnType<typeof useWorksp
   const d = (e.data ?? {}) as Record<string, unknown>;
   const name = (id: unknown) => (typeof id === "string" ? ws.member(id)?.name ?? id : "nobody");
   switch (e.type) {
-    case "issue.created": return `${who} created the issue`;
+    case "issue.created":
+      if (d.onBehalfOf) return `${who} created the issue for ${name(d.onBehalfOf)} (delegated)`;
+      if (d.captured) return `${who} captured the issue`;
+      return `${who} created the issue`;
+    case "assistant.refused": return `${who} declined to file for ${name(d.onBehalfOf)}: ${d.outcome === "deny" ? "not allowed" : String(d.outcome)}`;
     case "issue.assigned": return d.to ? `${who} assigned it to ${name(d.to)}` : `${who} unassigned it`;
     case "issue.status_changed": return `${who} moved it from ${d.fromName ?? "?"} to ${d.toName}`;
     case "issue.relation_added": return `${who} added a relation`;

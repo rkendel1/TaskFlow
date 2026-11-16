@@ -4,6 +4,7 @@
  */
 import { fail, s, type MutationCtx, type QueryCtx, type Schema } from "@feltdb/feltkit";
 import { activity, app, comments, issueRelations, issues, teams, workflowStates, ISSUE_TYPES, STATE_CATEGORIES } from "./app.js";
+import { createIssue } from "./_issues.js";
 import { checkIssueRefs, DONE, issueKey, must, notify, OPEN, reachableTeams, recordIssue, requireMember, teamStates, today, type Category, type Issue, type State, type Team } from "./_domain.js";
 import { ISSUE_REFS, policy } from "./_policy.js";
 
@@ -367,44 +368,7 @@ export const create = app.mutation({
   capability: { name: "issues.create", description: "File an issue in a team. Status defaults to the team's first unstarted status." },
   // Issue numbers come from one sequence per team: concurrent creates in a team re-run instead of failing.
   retry: { sequenceConflicts: 5 },
-  handler: async (ctx, a) => {
-    const me = ctx.auth.requirePrincipal().id;
-    const team = must(await ctx.db.get(teams, a.teamId), "team") as Team;
-    const states = await teamStates(ctx, team.id);
-    const state = a.stateId ? states.find((st) => st.id === a.stateId) : states.find((st) => st.category === "unstarted") ?? states[0];
-    if (!state) fail("INVALID_ARGUMENT", a.stateId ? "That status belongs to another team." : "The team has no statuses.");
-    if (a.assigneeId) await requireMember(ctx, a.assigneeId);
-    await checkIssueRefs(ctx, team.id, { projectId: a.projectId, milestoneId: a.milestoneId, cycleId: a.cycleId, parentId: a.parentId, labelIds: a.labelIds });
-    const number = await ctx.db.sequence(`issue:${team.id}`);
-    const now = Date.now();
-    const id = await ctx.db.insert(issues, {
-      teamId: team.id,
-      number,
-      title: a.title.trim(),
-      ...(a.description?.trim() ? { description: a.description.trim() } : {}),
-      stateId: state.id,
-      priority: a.priority ?? 0,
-      type: a.type ?? "issue",
-      ...(a.assigneeId ? { assigneeId: a.assigneeId } : {}),
-      creatorId: me,
-      labelIds: a.labelIds ?? [],
-      ...(a.estimate !== undefined ? { estimate: a.estimate } : {}),
-      ...(a.dueDate ? { dueDate: a.dueDate } : {}),
-      ...(a.projectId ? { projectId: a.projectId } : {}),
-      ...(a.milestoneId ? { milestoneId: a.milestoneId } : {}),
-      ...(a.cycleId ? { cycleId: a.cycleId } : {}),
-      ...(a.parentId ? { parentId: a.parentId } : {}),
-      sortOrder: now,
-      createdAt: now,
-      updatedAt: now,
-      ...(state.category === "completed" ? { completedAt: now } : {}),
-      ...(state.category === "canceled" ? { canceledAt: now } : {}),
-    });
-    const key = issueKey(team, { number });
-    await recordIssue(ctx, id, "issue.created", { key, title: a.title.trim(), state: state.name });
-    if (a.assigneeId) notify(ctx, [a.assigneeId], { type: "issue.assigned", title: `${key} was assigned to you: ${a.title.trim()}`, issueId: id, issueKey: key });
-    return { id, key };
-  },
+  handler: (ctx, a) => createIssue(ctx, a),
 });
 
 export const update = app.mutation({

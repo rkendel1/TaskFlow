@@ -1,8 +1,8 @@
-import { useState, type FormEvent } from "react";
-import { AccountSettings, TenantSettings, useMutation, useQueryState } from "@feltdb/feltkit/react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
+import { AccountSettings, TenantSettings, useFeltKit, useMutation, useQueryState } from "@feltdb/feltkit/react";
 import { api } from "../feltkit/_generated/api";
 import { IssueRow, IssuesPage, type Row } from "./Issues";
-import { Avatar, ProgressBar, ago, href, localToday, navigate, shortDate, useRun, useWorkspace } from "./lib";
+import { Avatar, ProgressBar, ago, href, localToday, navigate, shortDate, useRoute, useRun, useWorkspace } from "./lib";
 
 // ---------------------------------------------------------------------------------------------
 // Inbox
@@ -266,6 +266,7 @@ export function SettingsPage({ teamId }: { teamId?: string }) {
           <TeamsSettings selected={teamId} />
         </div>
         {admin && <WorkspacePreferences />}
+        <AssistantSettings admin={admin} />
         <div className="card-box">
           <h2 className="section-title">Account</h2>
           <AccountSettings />
@@ -366,5 +367,157 @@ function TeamsSettings({ selected }: { selected?: string }) {
         </div>
       )}
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Capture: file an issue from anywhere (FeltKit surfaces and invocations)
+// ---------------------------------------------------------------------------------------------
+
+const STATE_TEXT: Record<string, string> = { received: "Received", validating: "Checking", accepted: "Queued", running: "Filing…", awaiting_approval: "Waiting for approval", completed: "Filed", failed: "Failed", cancelled: "Canceled" };
+
+/** A bookmarklet that opens TaskFlow's capture form with the page's address, title and selection. */
+function bookmarklet(): string {
+  const base = `${window.location.origin}${window.location.pathname}`;
+  const code = `(()=>{const q=new URLSearchParams({url:location.href,title:document.title,selection:String(getSelection()||"").slice(0,4000)});window.open(${JSON.stringify(base)}+"#/capture?"+q,"_blank")})()`;
+  return `javascript:${encodeURIComponent(code)}`;
+}
+
+/**
+ * React 19 replaces a `javascript:` href with a stub that throws, as a guard against injected URLs.
+ * A bookmarklet is the one place such a URL is the point, and its code is ours, so it is set on the
+ * element after render.
+ */
+function Bookmarklet() {
+  const ref = useRef<HTMLAnchorElement>(null);
+  useEffect(() => { ref.current?.setAttribute("href", bookmarklet()); }, []);
+  return <a ref={ref} className="bookmarklet" onClick={(e) => e.preventDefault()}>Capture to TaskFlow</a>;
+}
+
+export function CapturePage() {
+  const ws = useWorkspace();
+  const route = useRoute();
+  const submit = useMutation(api.capture.submit);
+  const cancel = useMutation(api.capture.cancel);
+  const client = useFeltKit();
+  const run = useRun();
+  // Not useQueryState: a live query reading ctx.invocations is not re-run when an invocation changes
+  // (FeltKit 0.3.30; docs/GAP-REGISTER.md TF-GAP-16). Re-read after each action, and every 1.5 s only
+  // while a capture is still on its way.
+  type Captures = Awaited<ReturnType<typeof client.query<typeof api.capture.list>>>;
+  const [captures, setCaptures] = useState<{ data?: Captures }>({});
+  const reload = async () => {
+    try { setCaptures({ data: await client.query(api.capture.list) }); } catch { /* shown on the next read */ }
+  };
+  useEffect(() => { void reload(); }, []);
+  const pending = (captures.data ?? []).some((c) => !["completed", "failed", "cancelled"].includes(c.state));
+  useEffect(() => {
+    if (!pending) return;
+    const timer = setInterval(() => void reload(), 1500);
+    return () => clearInterval(timer);
+  }, [pending]);
+  const [teamId, setTeamId] = useState(ws.overview.teams[0]?.id ?? "");
+  const [instruction, setInstruction] = useState("");
+  const [url, setUrl] = useState(route.query.get("url") ?? "");
+  const [title, setTitle] = useState(route.query.get("title") ?? "");
+  const [selection, setSelection] = useState(route.query.get("selection") ?? "");
+  const send = async (e: FormEvent) => {
+    e.preventDefault();
+    // The envelope is FeltKit's contract: data about what was captured, never who is asking.
+    const context = [
+      ...(url.trim() ? [{ kind: "url", url: url.trim(), ...(title.trim() ? { title: title.trim() } : {}) }] : []),
+      ...(selection.trim() ? [{ kind: "selection", text: selection.trim(), ...(url.trim() ? { url: url.trim() } : {}) }] : []),
+    ];
+    const envelope = { contract: "feltkit.invocation/1", invocationId: `capture-${crypto.randomUUID()}`, surface: { id: "capture", version: "1.0.0", device: navigator.userAgent.slice(0, 60) }, instruction: instruction.trim(), context, returnTo: { kind: "app" }, submittedAt: Date.now(), timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone };
+    if (await run(submit({ teamId, envelope }), "Captured. It will appear below when it's filed.")) {
+      setInstruction(""); setUrl(""); setTitle(""); setSelection("");
+      await reload();
+    }
+  };
+  return (
+    <section className="page">
+      <header className="page-header"><h1>Capture</h1></header>
+      <div className="settings-grid">
+        <form className="card-box capture-form" onSubmit={send}>
+          <h2 className="section-title">File it from where you are</h2>
+          <label className="field">Team
+            <select value={teamId} onChange={(e) => setTeamId(e.target.value)}>{ws.overview.teams.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}</select>
+          </label>
+          <label className="field">What is it?<textarea value={instruction} onChange={(e) => setInstruction(e.target.value)} rows={2} maxLength={2000} placeholder="Checkout button overlaps the total on mobile" /></label>
+          <label className="field">Page address<input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://…" inputMode="url" /></label>
+          <label className="field">Page title<input value={title} onChange={(e) => setTitle(e.target.value)} maxLength={300} /></label>
+          <label className="field">Selected text<textarea value={selection} onChange={(e) => setSelection(e.target.value)} rows={3} maxLength={20000} /></label>
+          <button disabled={!teamId || (!instruction.trim() && !url.trim() && !selection.trim())}>Capture</button>
+          <p className="muted small">
+            From any page: drag <Bookmarklet /> to your bookmarks bar, then click it on the page you want to file.
+          </p>
+        </form>
+        <div className="card-box">
+          <h2 className="section-title">Your captures</h2>
+          {!captures.data ? <div className="skeleton-row" /> : !captures.data.length ? <p className="muted">Nothing captured in this workspace yet.</p> : (
+            <ul className="plain captures">
+              {captures.data.map((c) => (
+                <li key={c.id}>
+                  <span className={`pill ${c.state === "completed" ? "completed" : c.state === "failed" ? "canceled" : "planned"}`}>{STATE_TEXT[c.state] ?? c.state}</span>
+                  <span className="capture-text">{c.instruction || c.context[0]?.title || c.context[0]?.url || "Captured"}</span>
+                  <span className="muted small">{ago(c.receivedAt)}</span>
+                  {c.result && <a href={href("/capture", { issue: c.result.issueId })}>{c.result.key}</a>}
+                  {c.error && <span className="overdue small">{c.error.message}</span>}
+                  {(c.state === "accepted" || c.state === "received") && <button className="link small" onClick={async () => { await run(cancel({ id: c.id })); await reload(); }}>Cancel</button>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+// ---------------------------------------------------------------------------------------------
+// Assistant: delegation through FeltKit's private AuthBoundry
+// ---------------------------------------------------------------------------------------------
+
+type Grant = { id: string; capabilities: string[]; expiresAt: number | null; status: string };
+
+function AssistantSettings({ admin }: { admin: boolean }) {
+  const ws = useWorkspace();
+  const client = useFeltKit();
+  const list = useMutation(api.assistant.grants);
+  const grant = useMutation(api.assistant.grant);
+  const revoke = useMutation(api.assistant.revoke);
+  const run = useRun();
+  const [grants, setGrants] = useState<Grant[] | null>(null);
+  const [days, setDays] = useState(30);
+  const assistant = ws.member("taskflow-assistant");
+  const refresh = async () => setGrants((await run(list({}))) ?? []);
+  useEffect(() => { void refresh(); }, []);
+  const active = (grants ?? []).filter((g) => g.status === "active" && (!g.expiresAt || g.expiresAt > Date.now()));
+  return (
+    <div className="card-box">
+      <h2 className="section-title">Assistant</h2>
+      <p className="muted small">On any issue, comment <code>@assistant follow up: &lt;title&gt;</code> and the TaskFlow assistant files a sub-issue for you. It acts as itself, only for people who allowed it, within its own role and the teams it is on. Each request is decided by the workspace's authority and recorded in the issue's history.</p>
+      {!assistant ? (
+        admin ? (
+          <button className="secondary" onClick={() => void run(client.addMember("taskflow-assistant", "agent"), "The assistant joined this workspace")}>Add the assistant to this workspace</button>
+        ) : <p className="muted small">The assistant isn't in this workspace. A workspace admin can add it.</p>
+      ) : <p className="small"><Avatar id="taskflow-assistant" size={16} /> In this workspace as <strong>{assistant.role}</strong>. Add it to private teams it should work in.</p>}
+      <h3>What you allow</h3>
+      {grants === null ? <div className="skeleton-row" /> : active.length ? (
+        <ul className="plain">
+          {active.map((g) => (
+            <li key={g.id}>File issues for me {g.expiresAt ? `until ${new Date(g.expiresAt).toLocaleDateString()}` : ""}
+              <button className="link small" onClick={async () => { await run(revoke({ id: g.id }), "Revoked"); await refresh(); }}>Revoke</button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <div className="inline-form" style={{ padding: 0 }}>
+          <span className="small">Let the assistant file issues for me for</span>
+          <select value={days} onChange={(e) => setDays(Number(e.target.value))} aria-label="Days">{[1, 7, 30, 90].map((d) => <option key={d} value={d}>{d} day{d > 1 ? "s" : ""}</option>)}</select>
+          <button onClick={async () => { await run(grant({ days }), "Allowed"); await refresh(); }}>Allow</button>
+        </div>
+      )}
+    </div>
   );
 }

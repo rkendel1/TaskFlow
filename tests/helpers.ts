@@ -58,3 +58,9 @@ export async function refused(promise: Promise<unknown>, codes: string[] | strin
   }
   throw new Error(`Expected ${want.join("/")}, but the call succeeded`);
 }
+
+/** The TaskFlow assistant (an application agent), as a workspace manager adds it. */
+export async function addAssistant(w: World, workspace: string, manager = "ada") {
+  const ctx = await w.t.tenancy!.context(workspace, manager);
+  await w.t.tenancy!.addPrincipal({ ...ctx!, principalId: manager }, { id: "taskflow-assistant", type: "agent", displayName: "TaskFlow assistant" }, "agent");
+}

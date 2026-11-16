@@ -36,7 +36,9 @@ No platform repository was changed, and nothing unpublished was consumed. Platfo
 | Idempotent retries (AppPort key) | **Tested** | `agents.test.ts` |
 | Revocation (membership removal, session revocation) | **Tested** | `agents.test.ts`, `collab.test.ts` |
 | Restart keeps state (900 issues, 25 full issue details, projects, attention compared) | **Tested** | `work.test.ts` |
-| Person-to-agent delegation ("acts for Ada") | **Missing** (platform: TF-GAP-12) | |
+| Person-to-agent delegation ("acts for Ada"): the assistant files follow-ups on a person's grant (FeltKit `authority.local`) | **Implemented, tested** | `assistant.test.ts`; Chromium |
+| Capture from anywhere (FeltKit surfaces and invocations): form and bookmarklet; durable, replay-safe, cancellable | **Implemented, tested** | `capture.test.ts`; Chromium. Status refresh polls (TF-GAP-16) |
+| Resource rules bound to function definitions (FRAME-GAP-04) | **Implemented, tested** | `foundation.test.ts` coverage test |
 | Production deployment | **Partially verified**: `feltkit build` passes. `feltkit deploy`, `start` and hosted targets were not run | |
 
 UI (Chromium, `feltkit dev`):
@@ -49,7 +51,7 @@ UI (Chromium, `feltkit dev`):
 
 | Suite | Tests | Pass | Fail | Skip | Time |
 |---|--:|--:|--:|--:|--:|
-| `npm test` (TaskFlow: foundation 6, work 9, collab 6, agents 5), on 0.3.30 / Services 0.18.0 | 26 | 26 | 0 | 0 | 29.4 s |
+| `npm test` (TaskFlow: foundation 6, work 9, collab 6, agents 6, capture 3, assistant 2), on 0.3.30 / Services 0.18.0 / `@authboundry/local` 0.1.0 | 32 | 32 | 0 | 0 | 58.8 s |
 | `npm run test:probes` (platform gap reproductions) | 5 | 5 | 0 | 0 | — |
 | `npm run typecheck` | — | pass | | | |
 | `feltkit measure --check` | 4 checks | pass | | | |

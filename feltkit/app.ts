@@ -14,7 +14,13 @@ import { authorize } from "./_policy.js";
  */
 const READ = ["workspace.read", "issues.read", "projects.read", "notifications.send", "files.read"];
 /** What a contributor (member) can do in the teams they can reach. */
-const CONTRIBUTE = [...READ, "issues.create", "issues.update", "comments.write", "projects.write", "cycles.write", "labels.write", "teams.write", "files.write", "files.delete"];
+/**
+ * Capture (feltkit/capture.ts) dispatches its work as an AppPort Services job run as the person, so
+ * whoever may capture needs jobs.create and jobs.execute. Without them the capture is accepted and its
+ * dispatch fails in the outbox, unannounced (docs/GAP-REGISTER.md TF-GAP-10, measured on capture).
+ */
+const CAPTURE = ["jobs.create", "jobs.execute"];
+const CONTRIBUTE = [...READ, "assistant.delegate", "issues.create", "issues.update", "comments.write", "projects.write", "cycles.write", "labels.write", "teams.write", "files.write", "files.delete", ...CAPTURE];
 /** Inbox: a principal reads and marks only its own notifications (AppPort Services enforces it). */
 const INBOX = ["notifications.read", "notifications.update"];
 
@@ -32,7 +38,7 @@ export const app = feltkit({
     // (issues:remove is approval: "required"). They cannot manage teams, members or settings.
     agent: [...READ, "issues.create", "issues.update", "comments.write", "issues.delete", ...INBOX, "feltkit.agent.*"],
     // Guests reach only the teams they are added to (_policy.ts); they read, file and comment.
-    guest: [...READ, "issues.create", "comments.write", "files.write", "files.delete"],
+    guest: [...READ, "issues.create", "comments.write", "files.write", "files.delete", ...CAPTURE],
     // Environment administration (Studio → Services, models, credentials). Development: Ada.
     operator: ["intelligence.*", "credential.*", "configuration.*", "apikeys.*", "jobs.*", "schedules.*", "feltkit.operations.*"],
   },
@@ -50,12 +56,27 @@ export const app = feltkit({
   },
   // Resolved at call time: _policy.ts reads this module's collections, so either may load first.
   authorize: (request) => authorize(request),
+  /**
+   * Delegation: people let the TaskFlow assistant act for them (feltkit/assistant.ts). FeltKit runs a
+   * private AuthBoundry (`@authboundry/local`) beside the application's state unless AUTHBOUNDRY_URL
+   * names a hosted one. AuthBoundry holds each person's grants and decides every on-behalf request;
+   * TaskFlow never stores who allowed what.
+   */
+  authority: {
+    local: true,
+    url: { env: "AUTHBOUNDRY_URL" },
+    application: "taskflow",
+    checkCredential: "credential-ref:authboundry-check",
+    executor: { principal: "agent:taskflow-assistant", type: "agent" },
+    capabilities: ["issues.create"],
+  },
   services: {
     notifications: { types: ["issue.assigned", "issue.mentioned", "issue.commented", "issue.status"] },
     configuration: true,
     files: true,
     apiKeys: { roles: ["agent"] },
-    jobs: true,
+    // capture.file: the work a capture invocation dispatches (feltkit/capture.ts), run as the person.
+    jobs: { handlers: { "capture.file": "capture:file" } },
     intelligence: true,
   },
 });
@@ -196,3 +217,18 @@ export const workspaceSettings = app.collection(
 
 /** Field-change history: written in the same transaction as the change it describes. */
 export const activity = app.auditTrail("activity", { subjects: ["issue", "project", "cycle", "team"] as const, ...WS });
+
+/**
+ * Capture: file an issue from wherever someone is (a page, a selection, a phone's share sheet). FeltKit
+ * owns the entry point, the `feltkit.invocation/1` contract, its lifecycle, dispatch and recovery
+ * (docs: node_modules/@feltdb/feltkit/docs/INVOCATIONS.md). The person's own session submits it;
+ * context is data, never instructions or identity. TaskFlow decides only what the work is.
+ */
+export const captureSurface = app.surface("capture", {
+  description: "File an issue from a page, a selection or a share sheet.",
+  version: "1.0.0",
+  delivery: "session",
+  modes: ["summon", "status"],
+  context: ["url", "selection", "text"],
+  returns: ["receipt", "app"],
+});

@@ -44,9 +44,23 @@ npm run typecheck
 npm run measure
 ```
 
-- `npm test`: 25 tests. Isolation, permissions, lifecycle, 900-issue workspaces, concurrency, notifications, live updates over HTTP, attachments, agents over MCP and AppPort, restart.
+- `npm test`: 32 tests. Isolation, permissions, lifecycle, 900-issue workspaces, concurrency, notifications, live updates over HTTP, attachments, agents over MCP and AppPort, restart.
 - `npm run test:probes`: reproductions of the platform gaps.
 - `npm run measure`: what the repository is made of.
+
+## Capture and the assistant
+
+- **Capture** (sidebar → Capture): file an issue from a page, a selection or a share sheet. Drag the
+  "Capture to TaskFlow" bookmarklet to your bookmarks bar and click it on any page. Built on FeltKit
+  surfaces and invocations: each capture is durable, a retry is a replay, and you can cancel one
+  before it runs.
+- **Assistant:**
+  1. A workspace admin adds it (Settings → Assistant).
+  2. You allow it to file issues for you, for 1–90 days.
+  3. Comment `@assistant follow up: <title>` on any issue, and it files a sub-issue for you.
+
+  It acts as itself, only for people who allowed it, and within its own role and teams. Each decision
+  comes from a private AuthBoundry (`@authboundry/local`) and is recorded in the issue's history.
 
 ## Agents
 
