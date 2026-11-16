@@ -1,6 +1,7 @@
 import { fail, s } from "@feltdb/feltkit";
 import { activity, app, teamMembers, teams, workflowStates, STATE_CATEGORIES } from "./app.js";
 import { DEFAULT_STATES, must, requireMember, reachableTeams, teamStates } from "./_domain.js";
+import { policy } from "./_policy.js";
 
 /** Teams I can reach, with their members and workflow. */
 export const list = app.query({
@@ -126,3 +127,13 @@ export const updateState = app.mutation({
   },
 });
 
+// Resource policy (_policy.ts), bound to each definition.
+policy(list, {});
+policy(get, { targets: { teamId: "team" } });
+policy(create, {});
+policy(update, { targets: { teamId: "team" }, require: "teamLead" });
+policy(addMember, { targets: { teamId: "team" }, require: "teamLead" });
+policy(removeMember, { targets: { teamId: "team" }, require: "teamLead" });
+policy(join, { targets: { teamId: "team" } });
+policy(addState, { targets: { teamId: "team" }, require: "teamLead" });
+policy(updateState, { targets: { stateId: "state" }, require: "teamLead" });

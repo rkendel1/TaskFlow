@@ -2,21 +2,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readdir } from "node:fs/promises";
 import { api } from "../feltkit/_generated/api.js";
-import { RULES } from "../feltkit/_policy.js";
+import { registeredDefinitions, ruleFor } from "../feltkit/_policy.js";
+import { app } from "../feltkit/app.js";
 import { makeTeam, refused, world } from "./helpers.js";
 
 // `isFunctionDefinition` is declared in app.d.ts but not exported from "@feltdb/feltkit".
 const isFunction = (v: unknown) => typeof v === "object" && v !== null && "handler" in v && "kind" in v && "access" in v;
 
-test("every function has a resource rule, and every rule a function (default deny stays honest)", async () => {
-  const names: string[] = [];
+test("every function has a resource rule bound to its definition, and every rule a function", async () => {
+  const definitions: Array<{ name: string; definition: object }> = [];
   for (const file of await readdir(new URL("../feltkit/", import.meta.url))) {
     if (!file.endsWith(".ts") || file.startsWith("_") || file === "app.ts") continue;
     const mod = await import(`../feltkit/${file}`);
-    for (const [name, value] of Object.entries(mod)) if (isFunction(value)) names.push(`${file.slice(0, -3)}:${name}`);
+    for (const [name, value] of Object.entries(mod)) if (isFunction(value)) definitions.push({ name: `${file.slice(0, -3)}:${name}`, definition: value as object });
   }
-  assert.deepEqual(names.filter((n) => !RULES[n]), [], "functions without a rule");
-  assert.deepEqual(Object.keys(RULES).filter((n) => !names.includes(n)), [], "rules without a function");
+  // Application agents run as functions too (`agent/<name>`); their runs need a rule as well.
+  for (const [name, agent] of app.agents) definitions.push({ name: `agent/${name}`, definition: agent.function });
+  assert.deepEqual(definitions.filter((d) => !ruleFor(d.definition)).map((d) => d.name), [], "functions without a rule");
+  const known = new Set(definitions.map((d) => d.definition));
+  assert.equal(registeredDefinitions().filter((d) => !known.has(d)).length, 0, "rules without a function");
 });
 
 test("two workspaces are isolated: lists, gets, searches and writes", async () => {

@@ -7,6 +7,7 @@
 import { fail, s } from "@feltdb/feltkit";
 import { app } from "./app.js";
 import { recordIssue } from "./_domain.js";
+import { policy } from "./_policy.js";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -67,3 +68,10 @@ export const remove = app.mutation({
     await recordIssue(ctx, issueId, "attachment.removed", { fileId, name: file.name });
   },
 });
+
+// Resource policy (_policy.ts), bound to each definition.
+policy(list, { targets: { issueId: "issue" } });
+policy(uploadLink, { targets: { issueId: "issue" } });
+policy(attach, { targets: { issueId: "issue" } });
+policy(download, { targets: { issueId: "issue" } });
+policy(remove, { targets: { issueId: "issue" } });

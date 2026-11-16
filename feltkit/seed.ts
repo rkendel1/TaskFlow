@@ -7,6 +7,7 @@
 import { fail, s } from "@feltdb/feltkit";
 import { activity, app, comments, cycles, issueRelations, issues, labels, milestones, projects, teamMembers, teams, workflowStates } from "./app.js";
 import { DEFAULT_STATES, type Category } from "./_domain.js";
+import { policy } from "./_policy.js";
 
 function rng(seed: number) {
   let a = seed >>> 0;
@@ -136,3 +137,6 @@ export const demo = app.mutation({
     return { teams: teamSpecs.length, issues: issueCount, comments: commentCount };
   },
 });
+
+// Resource policy (_policy.ts), bound to each definition.
+policy(demo, {});

@@ -1,6 +1,7 @@
 import { s } from "@feltdb/feltkit";
 import { app, issues, teamMembers, workspaceSettings } from "./app.js";
 import { OPEN, reachableTeams, teamStates } from "./_domain.js";
+import { policy } from "./_policy.js";
 
 const Settings = s.object({ estimates: s.enum(["none", "points", "tshirt"]), defaultTeamId: s.optional(s.string()) });
 
@@ -59,3 +60,9 @@ export const updateSettings = app.mutation({
     else await ctx.db.insert(workspaceSettings, next as never);
   },
 });
+
+// Resource policy (_policy.ts), bound to each definition.
+policy(overview, {});
+policy(members, {});
+policy(settings, {});
+policy(updateSettings, {});

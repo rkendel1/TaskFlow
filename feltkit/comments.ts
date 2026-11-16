@@ -1,6 +1,7 @@
 import { s } from "@feltdb/feltkit";
 import { app, comments, issues, teams } from "./app.js";
 import { issueKey, memberIds, must, notify, parseMentions, recordIssue } from "./_domain.js";
+import { policy } from "./_policy.js";
 
 /**
  * Comment on an issue. Mentions (`@[Name](id)`) of workspace members notify them; the issue's
@@ -58,3 +59,8 @@ export const remove = app.mutation({
     await recordIssue(ctx, comment.issueId, "comment.deleted", { commentId, by: ctx.auth.requirePrincipal().id });
   },
 });
+
+// Resource policy (_policy.ts), bound to each definition.
+policy(add, { targets: { issueId: "issue" } });
+policy(edit, { targets: { commentId: "comment" } });
+policy(remove, { targets: { commentId: "comment" }, require: "commentAuthorOrModerator" });

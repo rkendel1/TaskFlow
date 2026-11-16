@@ -9,13 +9,13 @@
  *   - its reads are fenced at commit (a team membership removed mid-call fails the mutation);
  *   - a live query re-runs, and is refused, when the caller loses access.
  *
- * Every function is registered in RULES. An unregistered function is refused (default deny), and
- * tests/policy.test.ts fails if a function is added without a rule.
+ * Every function registers its rule next to its definition (`policy`, below). An unregistered
+ * function is refused (default deny), and tests/foundation.test.ts fails if one is missing.
  */
 import type { AuthorizeHook, AuthorizeRequest, DatabaseReader, Principal } from "@feltdb/feltkit";
 import { comments, cycles, issues, labels, milestones, projects, teamMembers, teams, workflowStates } from "./app.js";
 
-type Target = "team" | "issue" | "project" | "cycle" | "comment" | "state" | "label" | "milestone";
+export type Target = "team" | "issue" | "project" | "cycle" | "comment" | "state" | "label" | "milestone";
 type Requirement =
   /** The team lead of every target team, or a workspace owner/admin. */
   | "teamLead"
@@ -24,7 +24,7 @@ type Requirement =
   /** The comment's author, or a holder of comments.moderate. */
   | "commentAuthorOrModerator";
 
-interface Rule {
+export interface Rule {
   /** Argument name → what it names. Each one present is resolved and its team checked. */
   targets?: Record<string, Target>;
   require?: Requirement;
@@ -32,74 +32,33 @@ interface Rule {
   noWorkspace?: true;
 }
 
-const ISSUE_REFS: Record<string, Target> = { teamId: "team", stateId: "state", projectId: "project", milestoneId: "milestone", cycleId: "cycle", parentId: "issue" };
+export const ISSUE_REFS: Record<string, Target> = { teamId: "team", stateId: "state", projectId: "project", milestoneId: "milestone", cycleId: "cycle", parentId: "issue" };
 
-/** "<module>:<export>" → rule. Workspace-level functions have no targets. */
-export const RULES: Record<string, Rule> = {
-  // workspace
-  "workspace:overview": {},
-  "workspace:members": {},
-  "workspace:settings": {},
-  "workspace:updateSettings": {},
-  "seed:demo": {},
-  // teams
-  "teams:list": {},
-  "teams:get": { targets: { teamId: "team" } },
-  "teams:create": {},
-  "teams:update": { targets: { teamId: "team" }, require: "teamLead" },
-  "teams:addMember": { targets: { teamId: "team" }, require: "teamLead" },
-  "teams:removeMember": { targets: { teamId: "team" }, require: "teamLead" },
-  "teams:join": { targets: { teamId: "team" } },
-  "teams:addState": { targets: { teamId: "team" }, require: "teamLead" },
-  "teams:updateState": { targets: { stateId: "state" }, require: "teamLead" },
-  // labels
-  "labels:list": {},
-  "labels:create": { targets: { teamId: "team" } },
-  // projects
-  "projects:list": { targets: { teamId: "team" } },
-  "projects:create": { targets: { teamId: "team" } },
-  "projects:update": { targets: { projectId: "project" } },
-  "projects:summary": { targets: { projectId: "project" } },
-  "projects:addMilestone": { targets: { projectId: "project" } },
-  "projects:updateMilestone": { targets: { milestoneId: "milestone" } },
-  "projects:removeMilestone": { targets: { milestoneId: "milestone" } },
-  // cycles
-  "cycles:list": { targets: { teamId: "team" } },
-  "cycles:get": { targets: { cycleId: "cycle" } },
-  "cycles:create": { targets: { teamId: "team" } },
-  "cycles:addIssues": { targets: { cycleId: "cycle" } },
-  "cycles:removeIssues": { targets: { cycleId: "cycle" } },
-  // issues
-  "issues:list": { targets: { teamId: "team", projectId: "project", cycleId: "cycle" } },
-  "issues:search": {},
-  "issues:get": { targets: { issueId: "issue" } },
-  "issues:create": { targets: ISSUE_REFS },
-  "issues:update": { targets: { issueId: "issue", ...ISSUE_REFS } },
-  "issues:assign": { targets: { issueId: "issue" } },
-  "issues:setStatus": { targets: { issueId: "issue" } },
-  "issues:close": { targets: { issueId: "issue" } },
-  "issues:reopen": { targets: { issueId: "issue" } },
-  "issues:move": { targets: { issueId: "issue", stateId: "state" } },
-  "issues:addRelation": { targets: { issueId: "issue", blockedId: "issue" } },
-  "issues:removeRelation": { targets: { issueId: "issue", blockedId: "issue" } },
-  "issues:remove": { targets: { issueId: "issue" }, require: "issueCreatorOrAdmin" },
-  "issues:attention": { targets: { teamId: "team" } },
-  // comments
-  "comments:add": { targets: { issueId: "issue" } },
-  // Authorship is the function's own `owner` declaration (comments.ts); this checks the team's reach.
-  "comments:edit": { targets: { commentId: "comment" } },
-  "comments:remove": { targets: { commentId: "comment" }, require: "commentAuthorOrModerator" },
-  // attachments (files carry their issue in metadata; the issue is the resource)
-  "attachments:list": { targets: { issueId: "issue" } },
-  "attachments:uploadLink": { targets: { issueId: "issue" } },
-  "attachments:attach": { targets: { issueId: "issue" } },
-  "attachments:download": { targets: { issueId: "issue" } },
-  "attachments:remove": { targets: { issueId: "issue" } },
-  // inbox (AppPort Services notifications are per recipient; the service enforces it)
-  "inbox:list": { noWorkspace: true },
-  "inbox:markRead": { noWorkspace: true },
-  "inbox:markAllRead": {},
-};
+/**
+ * Rules are bound to the function definitions themselves (`policy(definition, rule)` at the bottom of
+ * each function module), never to "<module>:<export>" strings: FeltKit 0.3.30 hands the hook the
+ * called function's `definition` (FRAME-GAP-04). Renaming or moving a function keeps its rule, a
+ * mistyped binding fails to compile, and a function nobody registered is refused (default deny).
+ */
+const RULES = new WeakMap<object, Rule>();
+const REGISTERED: object[] = [];
+
+/** Register the resource rule of a function (or an application agent's run). */
+export function policy(definition: object, rule: Rule): void {
+  if (RULES.has(definition)) throw new Error("A function has two resource rules.");
+  RULES.set(definition, rule);
+  REGISTERED.push(definition);
+}
+
+/** The rule a definition was registered with (tests use this to prove coverage). */
+export function ruleFor(definition: object): Rule | undefined {
+  return RULES.get(definition);
+}
+
+/** Every registered definition (tests: no rule without a function). */
+export function registeredDefinitions(): readonly object[] {
+  return REGISTERED;
+}
 
 const ADMIN_ROLES = new Set(["owner", "admin"]);
 
@@ -165,7 +124,7 @@ export async function canReachTeam(db: DatabaseReader, principal: Principal, tea
 }
 
 export const authorize: AuthorizeHook = async (request: AuthorizeRequest) => {
-  const rule = RULES[request.function];
+  const rule = request.definition ? RULES.get(request.definition) : undefined;
   // Default deny: a function nobody wrote a rule for is not callable.
   if (!rule) return deny(`No resource policy for ${request.function}.`);
   const principal = request.principal;

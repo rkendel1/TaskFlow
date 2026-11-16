@@ -1,6 +1,7 @@
 import { fail, s } from "@feltdb/feltkit";
 import { app, labels } from "./app.js";
 import { reachableTeams } from "./_domain.js";
+import { policy } from "./_policy.js";
 
 /** Workspace labels, and labels of the teams I can reach. */
 export const list = app.query({
@@ -21,3 +22,7 @@ export const create = app.mutation({
     return ctx.db.insert(labels, { name: name.trim(), color: color ?? "#64748b", ...(teamId ? { teamId } : {}) });
   },
 });
+
+// Resource policy (_policy.ts), bound to each definition.
+policy(list, {});
+policy(create, { targets: { teamId: "team" } });

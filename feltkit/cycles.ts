@@ -1,6 +1,7 @@
 import { fail, s, type MutationCtx, type QueryCtx } from "@feltdb/feltkit";
 import { activity, app, cycles, issues, workflowStates } from "./app.js";
 import { must, recordIssue, today } from "./_domain.js";
+import { policy } from "./_policy.js";
 
 const date = () => s.string({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
 
@@ -93,3 +94,10 @@ export const removeIssues = app.mutation({
     }
   },
 });
+
+// Resource policy (_policy.ts), bound to each definition.
+policy(list, { targets: { teamId: "team" } });
+policy(get, { targets: { cycleId: "cycle" } });
+policy(create, { targets: { teamId: "team" } });
+policy(addIssues, { targets: { cycleId: "cycle" } });
+policy(removeIssues, { targets: { cycleId: "cycle" } });

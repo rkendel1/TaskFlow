@@ -1,6 +1,7 @@
 import { fail, s } from "@feltdb/feltkit";
 import { activity, app, issues, milestones, projects, workflowStates, PROJECT_STATUSES, STATE_CATEGORIES } from "./app.js";
 import { must, reachableTeams, requireMember, today } from "./_domain.js";
+import { policy } from "./_policy.js";
 
 const date = () => s.string({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
 const Progress = s.object({ total: s.integer(), completed: s.integer(), started: s.integer(), canceled: s.integer(), percent: s.number() });
@@ -176,3 +177,12 @@ export const removeMilestone = app.mutation({
     await activity.record(ctx, { subject: "project", id: m.projectId, type: "project.milestone_removed", data: { milestoneId, name: m.name } });
   },
 });
+
+// Resource policy (_policy.ts), bound to each definition.
+policy(list, { targets: { teamId: "team" } });
+policy(create, { targets: { teamId: "team" } });
+policy(update, { targets: { projectId: "project" } });
+policy(summary, { targets: { projectId: "project" } });
+policy(addMilestone, { targets: { projectId: "project" } });
+policy(updateMilestone, { targets: { milestoneId: "milestone" } });
+policy(removeMilestone, { targets: { milestoneId: "milestone" } });

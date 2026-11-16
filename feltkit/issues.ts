@@ -5,6 +5,7 @@
 import { fail, s, type MutationCtx, type QueryCtx, type Schema } from "@feltdb/feltkit";
 import { activity, app, comments, issueRelations, issues, teams, workflowStates, ISSUE_TYPES, STATE_CATEGORIES } from "./app.js";
 import { checkIssueRefs, DONE, issueKey, must, notify, OPEN, reachableTeams, recordIssue, requireMember, teamStates, today, type Category, type Issue, type State, type Team } from "./_domain.js";
+import { ISSUE_REFS, policy } from "./_policy.js";
 
 const date = () => s.string({ pattern: "^\\d{4}-\\d{2}-\\d{2}$" });
 const IssueView = s.doc(issues).extend({ key: s.string(), category: s.enum(STATE_CATEGORIES) });
@@ -522,3 +523,18 @@ export const remove = app.mutation({
   },
 });
 
+// Resource policy (_policy.ts), bound to each definition.
+policy(list, { targets: { teamId: "team", projectId: "project", cycleId: "cycle" } });
+policy(search, {});
+policy(get, { targets: { issueId: "issue" } });
+policy(create, { targets: ISSUE_REFS });
+policy(update, { targets: { issueId: "issue", ...ISSUE_REFS } });
+policy(assign, { targets: { issueId: "issue" } });
+policy(setStatus, { targets: { issueId: "issue" } });
+policy(close, { targets: { issueId: "issue" } });
+policy(reopen, { targets: { issueId: "issue" } });
+policy(move, { targets: { issueId: "issue", stateId: "state" } });
+policy(addRelation, { targets: { issueId: "issue", blockedId: "issue" } });
+policy(removeRelation, { targets: { issueId: "issue", blockedId: "issue" } });
+policy(remove, { targets: { issueId: "issue" }, require: "issueCreatorOrAdmin" });
+policy(attention, { targets: { teamId: "team" } });

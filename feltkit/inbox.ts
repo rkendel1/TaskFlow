@@ -1,5 +1,6 @@
 import { s } from "@feltdb/feltkit";
 import { app } from "./app.js";
+import { policy } from "./_policy.js";
 
 /**
  * The size of one AppPort Services notifications page. `ctx.services.notifications.list()` returns
@@ -61,3 +62,8 @@ export const markAllRead = app.mutation({
     return { marked, complete: false };
   },
 });
+
+// Resource policy (_policy.ts), bound to each definition.
+policy(list, { noWorkspace: true });
+policy(markRead, { noWorkspace: true });
+policy(markAllRead, {});
