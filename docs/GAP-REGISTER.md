@@ -15,6 +15,50 @@ Each gap was reproduced by running code, not inferred from the API's shape. Repr
 - `platform-probes/tests/gaps.test.ts`: `npm run test:probes`. A deliberately unguarded app, asserting current behavior. A failing probe means the platform changed.
 - TaskFlow's own tests: `npm test`.
 
+## Status on published packages (upgraded 2026-11-16)
+
+TaskFlow now runs on `@feltdb/feltkit` **0.3.30**, `@appport/services` **0.18.0** and `@feltdb/core`
+0.21.0 (unchanged). `@authboundry/core` 1.18.0 and `@authboundry/local` 0.1.0 are published; TaskFlow
+does not install them, because it does not use delegation yet.
+- **Tests:** `npm test` 26/26; `npm run test:probes` 5/5; typecheck and `feltkit build` pass.
+
+**Workarounds removed or replaced:**
+
+| What | Why it could go | Change |
+|---|---|---|
+| The comment-author rule in `_policy.ts` (`commentAuthor`) | FeltKit 0.3.30 enforces `owner` declared on a function (FRAME-GAP-04) | `comments:edit` declares `owner: { collection: comments, id: "commentId", field: "authorId" }`; the hook only checks team reach |
+
+**Workarounds that stay, because the published fix is not there** (each probe still asserts the old behaviour):
+
+| ID | Workaround | Evidence on 0.3.30 / Services 0.18.0 |
+|---|---|---|
+| TF-GAP-01 | Per-workspace key check in `teams:create` | probe TF-GAP-01 passes |
+| TF-GAP-02 | Tenant-scoped re-reads of references (`checkIssueRefs`) | probe TF-GAP-02 passes |
+| TF-GAP-05 | `data.workspaceId` on notifications plus the inbox filter | probe TF-GAP-05 passes |
+| TF-GAP-09 | Attachment-removal ownership in the handler | `AuthorizeRequest` has no services view; `owner` covers collections only |
+| TF-GAP-13 | Structural function check in the coverage test | not exported |
+| TF-GAP-04 | In-memory filtering in `issues:list` | `WhereClause` unchanged; FeltDB not republished |
+
+**Still open, no TaskFlow workaround involved:**
+- TF-GAP-03 (in-app approval of others' proposals): `approveOwn` only.
+- TF-GAP-07 and TF-GAP-08 (docs): GUARANTEES.md:401 and UPSTREAM-GAPS A9 are still stale.
+- TF-GAP-10: no permission check when an effect is staged.
+- TF-GAP-14: by design.
+
+TF-GAP-06 (docs) is **fixed** in 0.3.30. TF-GAP-12 delegation (`ctx.authority.grants`, local AuthBoundry) is now published.
+TaskFlow has not adopted it; adopting it is a feature, not a workaround.
+
+**New on the published packages: TF-GAP-15.**
+- **Finding.** `ctx.services.notifications.list()` returns the Services' first page (50, newest first)
+  and drops its cursor. There is no paging API in 0.3.30. FRAME-GAP-08a's `page()` is on an unpublished
+  FeltKit branch.
+- **Measured.** 70 sent, 50 listed. TaskFlow's "mark all read" left 20 unread.
+- **TaskFlow now:**
+  - `inbox:list` returns `{ items, truncated }`, and the inbox says when older notifications cannot be listed;
+  - `inbox:markAllRead` drains unread pages until none of this workspace's remain (bounded), and reports `{ marked, complete }`;
+  - tested in `tests/collab.test.ts`; probe "TF-GAP-15" pins the cap.
+- **Residual.** Notifications older than the newest 50 cannot be shown until paging is published.
+
 ## Status on platform `main` (validated 2026-11-14)
 
 Re-validated against **built** feltkit `main` `30f30c7` (0.3.30, unpublished) with appport-services
@@ -65,6 +109,7 @@ The platform register on `main` does not yet mention any `TF-GAP` finding.
 | TF-GAP-12 | Person-to-agent delegation (on behalf of) is not available; AuthBoundry is not integrated | 3 | FeltKit / AuthBoundry | Medium | Depends on the requirement |
 | TF-GAP-13 | `isFunctionDefinition` is declared but not exported | 5 | FeltKit | Low | No |
 | TF-GAP-14 | `useAuthRedirect` ignores an invitation link opened in an already-loaded tab | 2 | FeltKit (React) | Low | No |
+| TF-GAP-15 | `notifications.list()` returns one page of 50 and no cursor (= FRAME-GAP-08a, fixed on an unpublished branch) | 2 | FeltKit | Medium | Inbox past 50 notifications: older ones unreachable |
 
 ## Details
 

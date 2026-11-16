@@ -29,10 +29,15 @@ export const add = app.mutation({
   },
 });
 
-/** Only the author edits (_policy.ts). The previous text is not kept; the trail records the edit. */
+/**
+ * Only the author edits. Declared on the function (FeltKit `owner`, 0.3.30), so the rule moves with
+ * it and FeltKit enforces it on every interface; the policy hook still checks the team's reach. The
+ * previous text is not kept; the trail records the edit.
+ */
 export const edit = app.mutation({
   access: "comments.write",
   args: { commentId: s.string(), body: s.string({ minLength: 1, maxLength: 10000 }) },
+  owner: { collection: comments, id: "commentId", field: "authorId" },
   handler: async (ctx, { commentId, body }) => {
     const comment = must(await ctx.db.get(comments, commentId), "comment");
     if (comment.deletedAt) return;

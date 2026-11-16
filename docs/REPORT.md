@@ -1,8 +1,10 @@
 # TaskFlow on FeltKit: validation report
 
 Built on the published stack only:
-- `npm create feltkit@latest` (create-feltkit 0.3.29);
-- `@feltdb/feltkit` 0.3.29, `@feltdb/core` 0.21.0, AppPort 1.x, `@appport/services` 0.17.0.
+- `npm create feltkit@latest` (create-feltkit 0.3.29), upgraded on 2026-11-16 to `@feltdb/feltkit` **0.3.30**;
+- `@feltdb/core` 0.21.0, AppPort 1.x, `@appport/services` **0.18.0** (was 0.17.0).
+
+What the upgrade changed is in [GAP-REGISTER.md](GAP-REGISTER.md), "Status on published packages".
 
 No platform repository was changed, and nothing unpublished was consumed. Platform limitations are in
 [GAP-REGISTER.md](GAP-REGISTER.md); the design is in [DESIGN.md](DESIGN.md).
@@ -47,8 +49,8 @@ UI (Chromium, `feltkit dev`):
 
 | Suite | Tests | Pass | Fail | Skip | Time |
 |---|--:|--:|--:|--:|--:|
-| `npm test` (TaskFlow: foundation 6, work 9, collab 5, agents 5) | 25 | 25 | 0 | 0 | 22.4 s |
-| `npm run test:probes` (platform gap reproductions) | 4 | 4 | 0 | 0 | — |
+| `npm test` (TaskFlow: foundation 6, work 9, collab 6, agents 5), on 0.3.30 / Services 0.18.0 | 26 | 26 | 0 | 0 | 29.4 s |
+| `npm run test:probes` (platform gap reproductions) | 5 | 5 | 0 | 0 | — |
 | `npm run typecheck` | — | pass | | | |
 | `feltkit measure --check` | 4 checks | pass | | | |
 

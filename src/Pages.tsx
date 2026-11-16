@@ -13,13 +13,14 @@ export function InboxPage() {
   const markRead = useMutation(api.inbox.markRead);
   const markAll = useMutation(api.inbox.markAllRead);
   const run = useRun();
-  const items = inbox.data ?? [];
+  const items = inbox.data?.items ?? [];
   return (
     <section className="page">
       <header className="page-header">
         <h1>Inbox</h1>
         {items.some((n) => !n.read) && <button className="secondary" onClick={() => void run(markAll({}))}>Mark all read</button>}
       </header>
+      {inbox.data?.truncated && <p className="muted small pad">Showing your most recent notifications. Older ones can't be listed yet.</p>}
       {!inbox.data ? <div className="skeleton-list" aria-busy="true"><div className="skeleton-row" /></div> : !items.length ? (
         <div className="empty-state"><h2>You're all caught up</h2><p>Assignments, mentions, comments and status changes on your issues appear here.</p></div>
       ) : (

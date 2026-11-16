@@ -20,31 +20,31 @@ test("notifications reach the right people, never the actor, and stay in their w
     const grace = w.as("grace", w.acme);
     const { id, key } = await ada.mutation(api.issues.create, { teamId, title: "Payments timeout", assigneeId: "grace" });
     await settle(w);
-    let inbox = await grace.query(api.inbox.list, {});
+    let inbox = (await grace.query(api.inbox.list, {})).items;
     assert.deepEqual(inbox.map((n) => [n.type, n.data.issueKey]), [["issue.assigned", key]]);
-    assert.deepEqual(await ada.query(api.inbox.list, {}), [], "the actor is not notified of their own change");
+    assert.deepEqual((await ada.query(api.inbox.list, {})).items, [], "the actor is not notified of their own change");
 
     await grace.mutation(api.comments.add, { issueId: id, body: "@[Ada](ada) can you look at the retry budget? @[Mallory](mallory)" });
     await grace.mutation(api.issues.setStatus, { issueId: id, status: "completed" });
     await settle(w);
-    const adaInbox = await ada.query(api.inbox.list, {});
+    const adaInbox = (await ada.query(api.inbox.list, {})).items;
     assert.deepEqual(adaInbox.map((n) => n.type).sort(), ["issue.mentioned", "issue.status"]);
     // Mallory is not in Acme: a mention of her is dropped, and nothing reaches her.
-    assert.deepEqual(await w.as("mallory", w.globex).query(api.inbox.list, {}), []);
+    assert.deepEqual((await w.as("mallory", w.globex).query(api.inbox.list, {})).items, []);
 
     // Grace is in both workspaces: in Globex her inbox shows Globex only.
     const glb = await makeTeam(w, w.globex, "mallory", "GLB");
     await w.as("mallory", w.globex).mutation(api.issues.create, { teamId: glb.teamId, title: "Globex task", assigneeId: "grace" });
     await settle(w);
-    assert.deepEqual((await w.as("grace", w.globex).query(api.inbox.list, {})).map((n) => n.title), ["GLB-1 was assigned to you: Globex task"]);
-    inbox = await grace.query(api.inbox.list, {});
+    assert.deepEqual(((await w.as("grace", w.globex).query(api.inbox.list, {})).items).map((n) => n.title), ["GLB-1 was assigned to you: Globex task"]);
+    inbox = (await grace.query(api.inbox.list, {})).items;
     assert.ok(inbox.every((n) => n.data.workspaceId === w.acme));
 
     // Each person marks only their own (AppPort Services enforces recipient-only access).
     await refused(grace.mutation(api.inbox.markRead, { id: adaInbox[0]!.id }), ["FORBIDDEN", "NOT_FOUND", "DENIED"]);
     await ada.mutation(api.inbox.markAllRead, {});
-    assert.deepEqual(await ada.query(api.inbox.list, { unread: true }), []);
-    assert.equal((await grace.query(api.inbox.list, { unread: true })).length, inbox.length, "Ada's read state is hers alone");
+    assert.deepEqual((await ada.query(api.inbox.list, { unread: true })).items, []);
+    assert.equal(((await grace.query(api.inbox.list, { unread: true })).items).length, inbox.length, "Ada's read state is hers alone");
     // Effects run as the caller after commit; a role missing notifications.send fails them in the
     // outbox while the mutation still commits. None may have failed.
     assert.deepEqual((await w.t.runtime.listOutbox({ state: "failed" })).map((r) => (r as { error?: unknown }).error), []);
@@ -63,7 +63,7 @@ test("a mutation that fails sends no notification", async () => {
     const other = await makeTeam(w, w.acme, "ada", "DES");
     await refused(ada.mutation(api.issues.update, { issueId: id, assigneeId: "grace", stateId: other.state("started") }), "INVALID_ARGUMENT");
     await settle(w);
-    assert.deepEqual(await w.as("grace", w.acme).query(api.inbox.list, {}), []);
+    assert.deepEqual((await w.as("grace", w.acme).query(api.inbox.list, {})).items, []);
     assert.equal((await ada.query(api.issues.get, { issueId: id })).assigneeId, undefined);
   } finally {
     await w.t.close();
@@ -182,6 +182,28 @@ test("attachments: upload by link, download by link, scoped to the issue's reach
     assert.deepEqual(await grace.query(api.attachments.list, { issueId }), []);
   } finally {
     await server.close();
+    await w.t.close();
+  }
+});
+
+test("inbox past one notifications page: says it is truncated, shows the newest, and mark-all-read clears everything", async () => {
+  const w = await world();
+  try {
+    const { teamId } = await makeTeam(w, w.acme, "ada", "ENG");
+    for (let i = 0; i < 70; i++) {
+      await w.as("ada", w.acme).mutation(api.issues.create, { teamId, title: `n${i}`, assigneeId: "grace" });
+      await settle(w);
+    }
+    const grace = w.as("grace", w.acme);
+    const inbox = await grace.query(api.inbox.list, {});
+    // FeltKit 0.3.30 lists one page (TF-GAP-15): the inbox says so instead of hiding it.
+    assert.equal(inbox.truncated, true);
+    assert.ok(inbox.items.length >= 1 && inbox.items.length <= 50);
+    assert.match(inbox.items[0]!.title, /^ENG-70 /, "newest first");
+    const result = await grace.mutation(api.inbox.markAllRead, {});
+    assert.deepEqual(result, { marked: 70, complete: true });
+    assert.deepEqual((await grace.query(api.inbox.list, { unread: true })).items, []);
+  } finally {
     await w.t.close();
   }
 });

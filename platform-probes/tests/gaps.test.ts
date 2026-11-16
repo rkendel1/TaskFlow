@@ -55,7 +55,7 @@ test("TF-GAP-05: notifications are per recipient, not per workspace", async () =
   }
 });
 
-test("files: scoped per workspace (the GUARANTEES text saying \"application-shared\" is out of date)", async () => {
+test("files: scoped per workspace (GUARANTEES says so since 0.3.30)", async () => {
   const t = await createTestApp();
   try {
     const a = (await t.provisionTenant("Acme", { id: "ada", roles: ["person"] })).id;
@@ -70,6 +70,19 @@ test("files: scoped per workspace (the GUARANTEES text saying \"application-shar
     };
     console.log("FILES", JSON.stringify(seen));
     assert.deepEqual(seen, { acmeMember: ["acme-contract.txt"], otherWorkspace: [], uploaderElsewhere: [] });
+  } finally {
+    await t.close();
+  }
+});
+
+test("TF-GAP-15 (= FRAME-GAP-08a): notifications.list() returns one page of 50 and no cursor", async () => {
+  const t = await createTestApp();
+  try {
+    const a = (await t.provisionTenant("Acme", { id: "ada", roles: ["person"] })).id;
+    for (let i = 0; i < 60; i++) await t.as("ada", { tenant: a }).mutation(api.probe.notifyMe, { title: `n${i}` });
+    await t.runtime.runServices();
+    // Expected: all 60 (or a cursor to reach them). Actual on 0.3.30: the first 50.
+    assert.equal((await t.as("ada", { tenant: a }).query(api.probe.myNotifications)).length, 50);
   } finally {
     await t.close();
   }

@@ -21,8 +21,6 @@ type Requirement =
   | "teamLead"
   /** The issue's creator, or a workspace owner/admin. */
   | "issueCreatorOrAdmin"
-  /** The comment's author. */
-  | "commentAuthor"
   /** The comment's author, or a holder of comments.moderate. */
   | "commentAuthorOrModerator";
 
@@ -88,7 +86,8 @@ export const RULES: Record<string, Rule> = {
   "issues:attention": { targets: { teamId: "team" } },
   // comments
   "comments:add": { targets: { issueId: "issue" } },
-  "comments:edit": { targets: { commentId: "comment" }, require: "commentAuthor" },
+  // Authorship is the function's own `owner` declaration (comments.ts); this checks the team's reach.
+  "comments:edit": { targets: { commentId: "comment" } },
   "comments:remove": { targets: { commentId: "comment" }, require: "commentAuthorOrModerator" },
   // attachments (files carry their issue in metadata; the issue is the resource)
   "attachments:list": { targets: { issueId: "issue" } },
@@ -211,10 +210,6 @@ export const authorize: AuthorizeHook = async (request: AuthorizeRequest) => {
       if (!issue) return deny("No issue named.");
       if (ADMIN_ROLES.has(role) || issue.creatorId === principal.id) return true;
       return deny("Only the issue's creator or a workspace admin can delete it.");
-    }
-    case "commentAuthor": {
-      const comment = resolved.get("commentId")?.record;
-      return comment?.authorId === principal.id || deny("Only the comment's author can edit it.");
     }
     case "commentAuthorOrModerator": {
       const comment = resolved.get("commentId")?.record;

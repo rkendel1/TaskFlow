@@ -91,7 +91,7 @@ test("an authorized agent does useful work over MCP, with the same rules and evi
     assert.ok(JSON.stringify(created).match(/dec_/), "and an authorization decision id");
     // Grace was notified by the agent's assignment and mention, like any other actor's.
     await w.t.runtime.runServices();
-    const inbox = await w.as("grace", w.acme).query(api.inbox.list, {});
+    const inbox = (await w.as("grace", w.acme).query(api.inbox.list, {})).items;
     assert.deepEqual(inbox.map((n) => n.type).sort(), ["issue.assigned", "issue.mentioned", "issue.status"]); // she is the assignee by the time it moves
     assert.ok(inbox.every((n) => n.data.actor === BOT.id));
   } finally {

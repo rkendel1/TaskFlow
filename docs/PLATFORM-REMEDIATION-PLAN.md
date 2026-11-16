@@ -4,6 +4,18 @@
 - TaskFlow is the frozen baseline at commit `5a56f47`. This document is the only change.
 - No platform repository was modified.
 
+## Release status (2026-11-16)
+
+Published since this plan:
+- `@feltdb/feltkit` 0.3.30;
+- `@appport/services` 0.18.0. FeltKit 0.3.30 requires `>=0.18.0`, which resolves **B5**;
+- `@authboundry/core` 1.18.0 and `@authboundry/local` 0.1.0, which resolves **B2**.
+
+TaskFlow is upgraded. On the published packages, TF-GAP-01, -02, -03, -04, -05, -07, -08, -09, -10 and
+-13 are unchanged, and their workarounds stay. TF-GAP-06 is fixed. FRAME-GAP-04 `owner` replaced one hook rule.
+B6 (notification paging) is still unpublished; it surfaced in TaskFlow as **TF-GAP-15**.
+Details: GAP-REGISTER.md, "Status on published packages".
+
 ## 0. Validation against platform `main` (re-run 2026-11-14, after the latest merges)
 
 Sections 1–9 were first written against feltkit `6c823b1` and appport-services `9f2ca53`. Both moved

@@ -113,7 +113,7 @@ export function WorkspaceProvider({ children, fallback }: { children: ReactNode;
       state: (id) => (id ? states.get(id) : undefined),
       member: (id) => members.data!.find((m) => m.id === id),
       label: (id) => labels.data!.find((l) => l.id === id),
-      unread: inbox.data?.length ?? 0,
+      unread: inbox.data?.items.length ?? 0,
     };
   }, [overview.data, teams.data, members.data, labels.data, inbox.data]);
   const error = overview.error ?? teams.error ?? members.error ?? labels.error;
