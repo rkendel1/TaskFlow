@@ -2,8 +2,8 @@
   "schema": "feltkit.measure/1",
   "app": {
     "name": "taskflow",
-    "feltkit": "^0.3.29",
-    "installed": "0.3.29"
+    "feltkit": "^0.3.30",
+    "installed": "0.3.30"
   },
   "method": {
     "files": "git ls-files (tracked, and untracked files that are not ignored); node_modules, dist, .feltkit and .git are never counted",
@@ -31,11 +31,11 @@
   "totals": {
     "domain": {
       "files": 13,
-      "lines": 1580
+      "lines": 1588
     },
     "experience": {
       "files": 8,
-      "lines": 1700
+      "lines": 1784
     },
     "infrastructure": {
       "files": 0,
@@ -51,7 +51,7 @@
     },
     "tests": {
       "files": 8,
-      "lines": 895
+      "lines": 926
     },
     "third-party": {
       "files": 0,
@@ -63,7 +63,7 @@
     },
     "excluded": {
       "files": 9,
-      "lines": 4416
+      "lines": 3914
     },
     "unclassified": {
       "files": 0,
@@ -72,7 +72,7 @@
   },
   "authored": {
     "files": 26,
-    "lines": 3373
+    "lines": 3465
   },
   "definitions": {
     "app": {
@@ -99,7 +99,7 @@
   "consumption": [
     {
       "api": "@feltdb/feltkit s",
-      "callSites": 438,
+      "callSites": 441,
       "files": 13
     },
     {
@@ -144,12 +144,12 @@
     },
     {
       "api": "@feltdb/feltkit/testing createTestApp",
-      "callSites": 4,
+      "callSites": 5,
       "files": 2
     },
     {
       "api": "ctx.services.notifications",
-      "callSites": 4,
+      "callSites": 5,
       "files": 1
     },
     {
@@ -367,7 +367,7 @@
       "path": "feltkit/_policy.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 174
+      "lines": 169
     },
     {
       "path": "feltkit/app.ts",
@@ -386,7 +386,7 @@
       "path": "feltkit/comments.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 46
+      "lines": 47
     },
     {
       "path": "feltkit/cycles.ts",
@@ -398,7 +398,7 @@
       "path": "feltkit/inbox.ts",
       "class": "domain",
       "basis": "path: feltkit/ (server functions)",
-      "lines": 30,
+      "lines": 42,
       "scaffold": "modified"
     },
     {
@@ -449,7 +449,7 @@
       "path": "package-lock.json",
       "class": "excluded",
       "basis": "lockfile",
-      "lines": 4416
+      "lines": 3914
     },
     {
       "path": "package.json",
@@ -486,7 +486,7 @@
       "path": "platform-probes/tests/gaps.test.ts",
       "class": "tests",
       "basis": "path: tests",
-      "lines": 60
+      "lines": 71
     },
     {
       "path": "platform-probes/tsconfig.json",
@@ -545,13 +545,13 @@
       "path": "src/Issues.tsx",
       "class": "experience",
       "basis": "path: src/ (UI)",
-      "lines": 234
+      "lines": 313
     },
     {
       "path": "src/Pages.tsx",
       "class": "experience",
       "basis": "path: src/ (UI)",
-      "lines": 339
+      "lines": 340
     },
     {
       "path": "src/lib.tsx",
@@ -570,7 +570,7 @@
       "path": "src/styles.css",
       "class": "experience",
       "basis": "path: src/ (UI)",
-      "lines": 247,
+      "lines": 251,
       "scaffold": "modified"
     },
     {
@@ -590,7 +590,7 @@
       "path": "tests/collab.test.ts",
       "class": "tests",
       "basis": "path: tests",
-      "lines": 156
+      "lines": 176
     },
     {
       "path": "tests/foundation.test.ts",

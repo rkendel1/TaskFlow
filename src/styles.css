@@ -150,6 +150,10 @@ ul.plain li { display: flex; align-items: center; gap: 6px; }
 .column-body { padding: 0 8px 8px; display: flex; flex-direction: column; gap: 6px; overflow-y: auto; }
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; display: grid; gap: 6px; cursor: grab; box-shadow: 0 1px 1px light-dark(rgba(0, 0, 0, 0.03), transparent); }
 .card:hover { border-color: var(--faint); }
+.card { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; }
+.card.lifted { opacity: 0.4; }
+.board.dragging, .board.dragging .card { cursor: grabbing; }
+.drag-ghost { position: fixed; z-index: 70; pointer-events: none; max-width: 260px; padding: 9px 10px; border-radius: 8px; background: var(--surface); border: 1px solid var(--accent); box-shadow: var(--shadow); font-weight: 500; transform: rotate(2deg); }
 .card-top { display: flex; justify-content: space-between; align-items: center; }
 .card-title { font-weight: 500; line-height: 1.35; }
 .card-meta { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 12px; }

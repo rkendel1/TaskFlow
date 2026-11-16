@@ -191,55 +191,142 @@ function IssueList({ rows, total, onMore }: { rows: Row[]; total: number; onMore
 }
 
 /**
- * Columns are the team's statuses (or, across teams, the five categories). Dragging a card changes
- * its status on the server; the live query then moves it for everyone.
+ * The board moves cards with pointer events, not HTML5 drag-and-drop: the same code works for a
+ * mouse, a pen and touch, in every browser and embedded webview (HTML5 drag-and-drop does not run on
+ * touch screens and differs across browsers for dragged links). A mouse picks a card up after it moves
+ * 5px, so a click still opens the issue; touch picks it up after a 300ms press, so a swipe still
+ * scrolls. Dropping changes the status on the server; the live query then moves the card for everyone.
  */
+type Drag = { id: string; title: string; x: number; y: number; over: string | null };
+
+function columnAt(x: number, y: number): string | null {
+  const el = document.elementFromPoint(x, y) as HTMLElement | null;
+  return el?.closest<HTMLElement>("[data-column]")?.dataset.column ?? null;
+}
+
+function useBoardDrag(onDrop: (columnKey: string, issueId: string) => void) {
+  const [drag, setDrag] = useState<Drag | null>(null);
+  const justDragged = useRef(false);
+  const boardRef = useRef<HTMLDivElement>(null);
+  const start = (e: React.PointerEvent<HTMLElement>, row: Row) => {
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    const { pointerId, pointerType } = e;
+    const sx = e.clientX, sy = e.clientY;
+    let active = false;
+    let holdTimer: number | undefined;
+    const begin = (x: number, y: number) => {
+      active = true;
+      justDragged.current = true;
+      setDrag({ id: row.id, title: row.title, x, y, over: columnAt(x, y) });
+    };
+    const autoscroll = (x: number) => {
+      const board = boardRef.current;
+      if (!board) return;
+      const r = board.getBoundingClientRect();
+      if (x < r.left + 60) board.scrollLeft -= 24;
+      else if (x > r.right - 60) board.scrollLeft += 24;
+    };
+    const onMove = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const moved = Math.hypot(ev.clientX - sx, ev.clientY - sy);
+      if (!active) {
+        if (pointerType === "touch") {
+          if (moved > 8) cleanup(); // a swipe: let the page scroll
+          return;
+        }
+        if (moved < 5) return;
+        begin(ev.clientX, ev.clientY);
+      }
+      ev.preventDefault();
+      autoscroll(ev.clientX);
+      setDrag((d) => (d ? { ...d, x: ev.clientX, y: ev.clientY, over: columnAt(ev.clientX, ev.clientY) } : d));
+    };
+    const onUp = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      const target = active ? columnAt(ev.clientX, ev.clientY) : null;
+      const wasActive = active;
+      cleanup();
+      if (wasActive) {
+        setDrag(null);
+        if (target) onDrop(target, row.id);
+        // The click that follows a drag must not open the issue.
+        window.setTimeout(() => (justDragged.current = false), 0);
+      }
+    };
+    const onCancel = (ev: PointerEvent) => {
+      if (ev.pointerId !== pointerId) return;
+      cleanup();
+      setDrag(null);
+      justDragged.current = false;
+    };
+    // While a touch drag is active, the finger moves the card, not the page.
+    const noScroll = (ev: TouchEvent) => { if (active) ev.preventDefault(); };
+    const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape" && active) { cleanup(); setDrag(null); window.setTimeout(() => (justDragged.current = false), 0); } };
+    function cleanup() {
+      window.clearTimeout(holdTimer);
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+      window.removeEventListener("pointercancel", onCancel);
+      document.removeEventListener("touchmove", noScroll);
+      window.removeEventListener("keydown", onKey);
+    }
+    window.addEventListener("pointermove", onMove, { passive: false });
+    window.addEventListener("pointerup", onUp);
+    window.addEventListener("pointercancel", onCancel);
+    document.addEventListener("touchmove", noScroll, { passive: false });
+    window.addEventListener("keydown", onKey);
+    if (pointerType === "touch") holdTimer = window.setTimeout(() => begin(sx, sy), 300);
+  };
+  return { drag, start, justDragged, boardRef };
+}
+
 function Board({ rows, teamStates, total }: { rows: Row[]; teamStates?: Array<{ id: string; name: string; category: string; color: string }>; total: number }) {
   const ws = useWorkspace();
   const move = useMutation(api.issues.move);
   const run = useRun();
-  const [over, setOver] = useState<string | null>(null);
   const columns = teamStates
     ? teamStates.map((st) => ({ key: st.id, title: st.name, category: st.category, color: st.color, rows: rows.filter((r) => r.stateId === st.id) }))
     : CATEGORIES.map((c) => ({ key: c, title: CATEGORY_LABEL[c]!, category: c, color: undefined, rows: rows.filter((r) => r.category === c) }));
-  const drop = async (columnKey: string, issueId: string) => {
-    setOver(null);
+  const drop = (columnKey: string, issueId: string) => {
     const row = rows.find((r) => r.id === issueId);
     if (!row) return;
     // Across teams a column is a category: use the issue's own team's first status in it.
     const stateId = teamStates ? columnKey : ws.team(row.teamId)?.states.find((st) => st.category === columnKey)?.id;
     if (!stateId || stateId === row.stateId) return;
-    await run(move({ issueId, stateId, sortOrder: Date.now(), expectedVersion: row.__version }));
+    void run(move({ issueId, stateId, sortOrder: Date.now(), expectedVersion: row.__version }));
   };
+  const { drag, start, justDragged, boardRef } = useBoardDrag(drop);
   return (
-    <div className="board" aria-label="Board">
+    <div className={`board${drag ? " dragging" : ""}`} aria-label="Board" ref={boardRef}>
       {columns.map((col) => (
-        <div
-          key={col.key}
-          className={`column${over === col.key ? " over" : ""}`}
-          onDragOver={(e) => { e.preventDefault(); setOver(col.key); }}
-          onDragLeave={() => setOver((o) => (o === col.key ? null : o))}
-          onDrop={(e) => { e.preventDefault(); void drop(col.key, e.dataTransfer.getData("text/issue")); }}
-          aria-label={col.title}
-        >
+        <div key={col.key} data-column={col.key} className={`column${drag?.over === col.key ? " over" : ""}`} aria-label={col.title}>
           <div className="column-header"><StatusIcon category={col.category} color={col.color} /> {col.title} <span className="muted">{col.rows.length}</span></div>
           <div className="column-body">
-            {col.rows.slice(0, 200).map((r) => <Card key={r.id} row={r} />)}
+            {col.rows.slice(0, 200).map((r) => <Card key={r.id} row={r} lifted={drag?.id === r.id} onPointerDown={(e) => start(e, r)} justDragged={justDragged} />)}
             {col.rows.length > 200 && <p className="muted small">+{col.rows.length - 200} more; filter to narrow.</p>}
           </div>
         </div>
       ))}
       {total > rows.length && <p className="muted small">Showing {rows.length} of {total}.</p>}
+      {drag && <div className="drag-ghost" style={{ left: drag.x + 8, top: drag.y + 8 }} aria-hidden="true">{drag.title}</div>}
     </div>
   );
 }
 
-function Card({ row }: { row: Row }) {
+function Card({ row, lifted, onPointerDown, justDragged }: { row: Row; lifted: boolean; onPointerDown: (e: React.PointerEvent<HTMLElement>) => void; justDragged: React.MutableRefObject<boolean> }) {
   const route = useRoute();
   const q = new URLSearchParams(route.query);
   q.set("issue", row.id);
   return (
-    <a className="card" draggable onDragStart={(e) => { e.dataTransfer.setData("text/issue", row.id); e.dataTransfer.effectAllowed = "move"; }} href={`#/${route.path.join("/")}?${q}`}>
+    <a
+      className={`card${lifted ? " lifted" : ""}`}
+      draggable={false}
+      onDragStart={(e) => e.preventDefault()}
+      onPointerDown={onPointerDown}
+      onClick={(e) => { if (justDragged.current) e.preventDefault(); }}
+      onContextMenu={(e) => { if (justDragged.current) e.preventDefault(); }}
+      href={`#/${route.path.join("/")}?${q}`}
+    >
       <div className="card-top"><span className="issue-key">{row.key}</span><Avatar id={row.assigneeId} size={18} /></div>
       <div className="card-title">{row.title}</div>
       <div className="card-meta">
