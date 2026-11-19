@@ -17,8 +17,8 @@
     "measure": "feltkit measure"
   },
   "dependencies": {
-    "@authboundry/local": "^0.1.0",
-    "@feltdb/feltkit": "^0.3.30",
+    "@authboundry/local": "^0.1.1",
+    "@feltdb/feltkit": "^0.3.34",
     "@feltdb/webllm": ">=0.21.0 <1.0.0",
     "@mlc-ai/web-llm": "^0.2.84",
     "react": "19.2.0",
